@@ -259,9 +259,19 @@ class ObdDiagnosticEngine {
         return raw.replace(">", "").replace("\r", " ").replace("\n", " ").trim()
     }
 
-    private fun parseDtcResponse(raw: String, status: DtcStatus, outMap: MutableMap<String, AgonisticDtcResult>) {
-        val cleaned = cleanResponse(raw)
+    internal fun parseDtcResponse(raw: String, status: DtcStatus, outMap: MutableMap<String, AgonisticDtcResult>) {
+        val cleaned = cleanResponse(raw).uppercase()
+        // ELM327 may return either spaced bytes ("43 01 33") or a compact
+        // stream when ATS0 is enabled ("430133"). Expand compact even-length
+        // hexadecimal tokens into byte pairs before parsing the Mode response.
         val tokens = cleaned.split(Regex("\\s+"))
+            .flatMap { token ->
+                if (token.length > 2 && token.length % 2 == 0 && token.all { it in "0123456789ABCDEF" }) {
+                    token.chunked(2)
+                } else {
+                    listOf(token)
+                }
+            }
         var i = 0
         while (i < tokens.size) {
             val token = tokens[i].uppercase()
