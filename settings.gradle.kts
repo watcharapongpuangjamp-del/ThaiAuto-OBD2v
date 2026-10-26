@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "AI System Optimizer"
+rootProject.name = "Thai Auto OBD-II Pro"
 
 include(":app")
