@@ -84,9 +84,14 @@ import com.example.ui.theme.AutoCyan
 import com.example.ui.theme.AutoGreen
 import com.example.ui.theme.MyApplicationTheme
 
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.example.data.model.AppThemeMode
 import java.util.Calendar
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import com.google.firebase.auth.FirebaseAuth
+import com.example.ui.screens.SignInScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,6 +100,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             val mainViewModel: MainViewModel = viewModel()
             val themeMode by mainViewModel.themeMode.collectAsState()
+            
+            var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
+
+            DisposableEffect(Unit) {
+                val listener = FirebaseAuth.AuthStateListener { auth ->
+                    currentUser = auth.currentUser
+                }
+                Firebase.auth.addAuthStateListener(listener)
+                onDispose {
+                    Firebase.auth.removeAuthStateListener(listener)
+                }
+            }
             
             val isDarkTheme = when (themeMode) {
                 AppThemeMode.LIGHT -> false
@@ -107,7 +124,13 @@ class MainActivity : ComponentActivity() {
             }
 
             MyApplicationTheme(darkTheme = isDarkTheme) {
-                MainAppContent(viewModel = mainViewModel)
+                if (currentUser == null) {
+                    SignInScreen(
+                        onAuthSuccess = { currentUser = Firebase.auth.currentUser }
+                    )
+                } else {
+                    MainAppContent(viewModel = mainViewModel)
+                }
             }
         }
     }
