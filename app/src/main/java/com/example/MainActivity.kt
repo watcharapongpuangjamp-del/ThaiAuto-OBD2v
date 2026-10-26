@@ -123,10 +123,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            var isGuestMode by remember { mutableStateOf(false) }
+
             MyApplicationTheme(darkTheme = isDarkTheme) {
-                if (currentUser == null) {
+                if (currentUser == null && !isGuestMode) {
                     SignInScreen(
-                        onAuthSuccess = { currentUser = Firebase.auth.currentUser }
+                        onAuthSuccess = { currentUser = Firebase.auth.currentUser },
+                        onGuestContinue = { isGuestMode = true }
                     )
                 } else {
                     MainAppContent(viewModel = mainViewModel)

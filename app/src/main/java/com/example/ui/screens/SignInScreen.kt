@@ -65,7 +65,8 @@ import com.example.ui.theme.AutoGreen
 
 @Composable
 fun SignInScreen(
-    onAuthSuccess: () -> Unit
+    onAuthSuccess: () -> Unit,
+    onGuestContinue: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -204,6 +205,25 @@ fun SignInScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Offline / Guest Mode Button
+            Button(
+                onClick = onGuestContinue,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("btn_guest_mode"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AutoCyan),
+                border = BorderStroke(1.dp, AutoCyan.copy(alpha = 0.5f))
+            ) {
+                Text(
+                    text = "เข้าใช้งานแบบ Offline / Demo",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
             }
         }
     }
