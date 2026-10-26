@@ -97,9 +97,8 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: 🧪 Run Unit Tests
-        if: ${{ github.event.inputs.run_tests != false }}
-        run: |
-          ./gradlew testDebugUnitTest --continue || echo "Tests completed with warnings"
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests }}
+        run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: 🔨 Build Debug APK
         if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'all' || github.event_name == 'push' || github.event_name == 'pull_request' }}
