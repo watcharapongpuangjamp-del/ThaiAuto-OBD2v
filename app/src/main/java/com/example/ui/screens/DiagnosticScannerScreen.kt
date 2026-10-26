@@ -1093,4 +1093,3 @@ fun getSystemIcon(system: DiagnosticSystem): ImageVector {
         DiagnosticSystem.IMMOBILIZER -> Icons.Default.Security
     }
 }
-
