@@ -68,8 +68,13 @@ jobs:
           fi
 
       - name: 🔑 Prepare Keystore Signing
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
         run: |
-          # If debug.keystore is missing but base64 exists, decode it
+          # Debug signing is independent from release signing.
           if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
             echo "Decoding debug.keystore from base64..."
             base64 -d debug.keystore.base64 > debug.keystore
@@ -78,28 +83,26 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # Setup Release Keystore if provided in GitHub Secrets
-          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "Decoding release keystore from secrets..."
-            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
-            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
-            echo "STORE_PASSWORD=${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}" >> $GITHUB_ENV
-          else
-            # Fallback release signing to debug keystore for easy CI builds
-            echo "Using debug keystore fallback for release build..."
-            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/debug.keystore" >> $GITHUB_ENV
-            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+          if [[ "$BUILD_TYPE" == "release" || "$BUILD_TYPE" == "all" ]]; then
+            if [[ -z "$RELEASE_KEYSTORE_BASE64" || -z "$RELEASE_KEYSTORE_PASSWORD" || -z "$RELEASE_KEY_PASSWORD" ]]; then
+              echo "::error::Release build requires RELEASE_KEYSTORE_BASE64, RELEASE_KEYSTORE_PASSWORD, and RELEASE_KEY_PASSWORD secrets."
+              exit 1
+            fi
+
+            printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
+            keytool -list -keystore my-upload-key.jks -storepass "$RELEASE_KEYSTORE_PASSWORD" -alias upload >/dev/null
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> "$GITHUB_ENV"
+            printf 'STORE_PASSWORD=%s\n' "$RELEASE_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            printf 'KEY_PASSWORD=%s\n' "$RELEASE_KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
 
       - name: 🛡️ Grant Execute Permissions to Gradlew
         run: chmod +x ./gradlew
 
       - name: 🧪 Run Unit Tests
-        if: ${{ github.event.inputs.run_tests != false }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests }}
         run: |
-          ./gradlew testDebugUnitTest --continue || echo "Tests completed with warnings"
+          ./gradlew testDebugUnitTest --continue
 
       - name: 🔨 Build Debug APK
         if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'all' || github.event_name == 'push' || github.event_name == 'pull_request' }}
