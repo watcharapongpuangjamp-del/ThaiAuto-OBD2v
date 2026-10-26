@@ -1,221 +1,187 @@
-# Implementation Plan: Expanded Thai Vehicle Database, Secure Cloud Repair History, & On-Device VIN Scanner
+# Implementation Plan: Live Sensor Dashboard, Push Notifications, Advanced DTC Guides, & Vehicle Intelligence
 
-## User Review Required
+## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Firebase Cloud Backend Setup**: The user chose **Full Firebase Firestore sync with Google Sign-In**. In the subsequent step, Firebase integration will require running `set_up_firebase` with `userConfirmedTermsAcceptedInUI: false` to allow project provisioning.
-> 
-> **Camera Permission**: The on-device camera VIN scanner requires declaring `android.permission.CAMERA` in `AndroidManifest.xml` and requesting runtime permission via Compose `rememberLauncherForActivityResult`. A Photo Picker fallback (`PickVisualMedia`) will be available without runtime permissions.
->
-> **ML Kit Dependency**: For OCR extraction of 17-character VINs from camera frames and images, we will include Google Play Services ML Kit Text Recognition (`com.google.android.gms:play-services-mlkit-text-recognition`), ensuring zero network latency and privacy-friendly on-device processing.
+> **Confirmed Choices from User Clarification**:
+> 1. **Live Sensor Dashboard Style**: Modern cards featuring animated circular gauges for primary telemetry (RPM, Speed, Coolant Temp, Rail Pressure) and real-time sparkline trend graphs.
+> 2. **Advanced DTC Analysis**: Interactive step-by-step troubleshooting guide with multimeter pinout checks, electrical specifications (voltage/resistance), and component testing procedures.
+> 3. **Notification System**: 3 distinct Android Notification Channels (`channel_critical_alerts`, `channel_service_reminders`, `channel_diagnostic_reports`) covering critical thresholds, scheduled maintenance intervals, and report generation triggers.
+> 4. **Cloud Repair History Backend**: Full Firebase Firestore integration specification with Google Sign-In via Jetpack `CredentialManager`, SHA-256 tamper-evident integrity hashes, and zero-trust security rules.
+> 5. **VIN Scanner**: On-device CameraX scanner with live targeting reticle, flashlight toggle, and photo picker upload fallback using Google Play Services ML Kit Text Recognition.
 
 ---
 
-## 1. Expanded Thai Vehicle Database (Pre-2000 & Custom Models)
+## 1. Overview & Core Concept
 
-### Pre-2000 & 1990s Iconic Thai Market Vehicles
-We will expand `ThaiCarDatabase.kt` to include classic, popular trucks, sedans, and vans that dominated Thai roads from the late 1980s through early 2000s:
-
-1. **Toyota**:
-   - **Hilux Mighty-X / Super LUX (1989–1997)**: Engine `2L-II` (2,446 cc SOHC Diesel, 89 hp / 167 Nm), Pre-OBD Toyota 17-pin / 22-pin DLC under hood, mechanical injection pump parameters.
-   - **Hilux Tiger / Tiger D4D (1998–2004)**: Engines `5L` (3.0L NA Diesel), `1KZ-TE` (3.0L Turbo Diesel), and the first Thai common-rail `2KD-FTV` (2.5L D4D).
-   - **Corolla AE100 / AE101 "สามห่วง" (1992–1996)**: Engine `4A-FE` (1.6L 16V DOHC, 115 hp) & `2E` (1.3L 12V), Toyota 17-pin OBD1 protocol diagnostics.
-   - **Soluna AL50 "หยดน้ำ / มุมส้ม" (1997–2002)**: Engine `5A-FE` (1.5L Twin Cam EFI, 95 hp).
-2. **Isuzu**:
-   - **TFR "มังกรทอง" / Dragon Eyes / Dragon Power (1990–2002)**: Legendary `4JA1` (2.5L Direct Injection, 90 hp), `4JB1` (2.8L), and `4JH1-T` (3.0L Turbo Direct Injection). Isuzu 3-pin DLC diagnostic adapter requirements.
-   - **D-Max 1st Gen (2002–2006)**: `4JA1-T`, `4JH1-T`, transition to OBD-II 16-pin connector.
-3. **Honda**:
-   - **Civic EG "เตารีด / 3-Door & 4-Door" (1992–1995)**: Engines `D15B` (1.5L SOHC / VTEC), `B16A` (1.6L DOHC VTEC). Honda 3-pin / 5-pin diagnostic connector under passenger kick panel.
-   - **Civic EK "ตาโต" (1996–2000)**: `D16Y` (1.6L VTEC), early OBD-II compliance.
-   - **City Type Z (1999–2002)**: `D15B` & `D13B` VTEC / Hyper 16V.
-4. **Nissan**:
-   - **Big-M / King Cab (1986–1997)**: Engines `BD25` (2.5L Diesel) & `TD27` (2.7L Diesel), Nissan 14-pin Consult diagnostic port.
-   - **Frontier D22 (1998–2007)**: `YD25DDTi` & `ZD30DDT` Turbo Diesel.
-   - **Cefiro A31 / A32 (1990–2001)**: `RB20DET` / `VQ20DE` / `VQ30DE`.
-5. **Mitsubishi**:
-   - **L200 Strada (1996–2005)**: `4D56` (2.5L Turbo Diesel) & `4M40` (2.8L Diesel). Mitsubishi 12-pin / OBD-II dual DLC.
-   - **Lancer Champ II / E-Car (1989–1996)**: `4G15` (1.5L) & `4G63` (2.0L DOHC).
-
-### How to Add Specific, Rare, or Custom Models
-- **Custom Vehicle Registry Dialog & Repository**: An interactive UI for mechanics and enthusiasts to register custom vehicles, engine swaps (e.g. 1JZ/2JZ-GTE, SR20DET, K20A, UZ-FE), custom boost tolerances, and specialized OBD-I to OBD-II adapter pinouts.
-- **Diagnostic Adapter Pinout Reference Guide**: Embedded technical wiring diagrams and guidance on how OBD-I 3-pin/12-pin/14-pin/17-pin connectors interface with standard 16-pin OBD-II ELM327 scanners via bridge converters.
+This release transforms the Car Diagnostic Application into a comprehensive, professional automotive platform engineered for both vehicle owners and mechanics across Thailand:
+- **Intuitive Mobile Dashboard**: A high-contrast, modern cockpit dashboard displaying live vehicle metrics with smooth circular needle/arc animations, real-time Canvas sparklines, urgent sensor alert banners, and upcoming service countdowns.
+- **Push Notification Engine**: Android system notification dispatcher alerting drivers to dangerous engine conditions (overheating, low battery voltage, high common-rail fuel pressure), scheduled maintenance milestones (oil, timing belt, brake pads), and completed scan export reports.
+- **Advanced DTC Diagnostic Guide**: Beyond standard error codes, provides interactive step-by-step troubleshooting workflows for OBD-II DTCs—including component wiring pinouts, normal multimeter voltage/resistance specs, physical inspection steps, and post-repair verification.
+- **Pre-2000 Thai Vehicle Intelligence**: Rich database expansion for legendary 1990s–2000s Thai market vehicles (Hilux Mighty-X, Tiger D4D, Corolla AE101 สามห่วง, Soluna AL50, Isuzu TFR มังกรทอง, Civic EG เตารีด, Nissan Big-M, Mitsubishi Strada) including OBD-I adapter bridging pinouts and custom model registration.
+- **On-Device VIN Scanner & Cloud Repair History**: ISO 3779 VIN decoder with camera and photo upload, alongside full technical specifications for secure cloud service history logging.
 
 ---
 
-## 2. Technical Specifications: Secure Cloud-Based Repair History Database
+## 2. User Experience & Visual Design
 
-### Architecture Overview
-A multi-tier cloud persistence architecture connecting vehicle owners, fleet managers, and independent repair shops with zero-trust security and end-to-end auditability.
+### Aesthetic Direction & Theming
+- **Vibe**: High-tech automotive telemetry cockpit, modern precision instrumentation, sleek dark theme with vivid M3 primary accents (Electric Cobalt `#2563EB`, Cyber Cyan `#06B6D4`, Emerald Safety `#10B981`, Amber Caution `#F59E0B`, Crimson Critical `#EF4444`).
+- **Typography**: Clean, high-legibility tabular figures for speedometer, tachometer, temperature gauges, and multimeter ohm/volt measurements.
+- **Layout & Density**:
+  - **Dashboard**: Prominent primary gauge cluster (RPM & Speed) with smooth sweep animations, secondary telemetry cards with real-time Canvas sparkline charts, critical alert banners, and service reminder chips.
+  - **DTC Diagnostic View**: Expandable multi-step checklist cards with test badge indicators (Multimeter, Smoke Test, Visual, Actuator Command), component pin diagrams, and "Mark Step Verified" toggles.
+  - **VIN Scanner**: Dark transparent overlay with neon alignment reticle, real-time OCR text bounding boxes, torch toggle, and gallery photo picker button.
+
+### Key User Flows
 
 ```
-+-------------------------------------------------------------------------------+
-|                       Android App (Jetpack Compose)                           |
-|  [Credential Manager]   [Maintenance ViewModel]   [Local Room / Cache]        |
-+------------------------------------+------------------------------------------+
-                                     | (TLS 1.3 + Firebase Auth JWT)
-                                     v
-+-------------------------------------------------------------------------------+
-|                           Firebase Cloud Infrastructure                       |
-|                                                                               |
-|  +--------------------+   +-----------------------+   +--------------------+  |
-|  |   Firebase Auth    |   |  Cloud Firestore      |   |  Firebase Storage  |  |
-|  | (Google Identity)  |   | (Encrypted Database)  |   | (Invoices & Scans) |  |
-|  +--------------------+   +-----------------------+   +--------------------+  |
-+-------------------------------------------------------------------------------+
-```
-
-### Detailed Specifications
-
-#### 1. User Authentication & Authorization
-- **Authentication Provider**: Firebase Authentication backed by Jetpack `CredentialManager` with `GetSignInWithGoogleOption` (`com.google.android.libraries.identity.googleid:googleid`).
-- **Identity Lifecycle**:
-  - OAuth 2.0 PKCE exchange returning standard Firebase ID tokens (JWT).
-  - Strict token expiration with automatic refresh rotation.
-  - Role-based attributes (`role: "owner" | "mechanic" | "fleet_admin"`).
-
-#### 2. Data Encryption Standards
-- **In-Transit**: TLS 1.3 enforced across all API endpoints with HTTP/2 and gRPC channel encryption.
-- **At-Rest**: Default AES-256 cloud encryption backed by Google Cloud KMS.
-- **Field-Level Sensitive Hashing**: VINs and vehicle registration plates indexed with SHA-256 hashes for fast lookup while protecting privacy against unauthorized scraping.
-- **Data Integrity**: Each repair entry includes a cryptographic SHA-256 checksum composed of `(vehicleId + timestamp + mileage + partsList + totalCost)` to prevent tampering with historical service records.
-
-#### 3. Firestore Schema Design
-- `/users/{userId}`: User profile, workshop affiliation, registered vehicle IDs.
-- `/vehicles/{vehicleId}`: Vehicle metadata (VIN, make, model, year, engineCode, currentMileage, licensePlate).
-- `/vehicles/{vehicleId}/repair_logs/{logId}`:
-  ```json
-  {
-    "logId": "uuid-v4",
-    "vehicleId": "vehicle_xyz",
-    "vin": "MR0FZ...",
-    "recordedByUserId": "auth_uid_123",
-    "workshopName": "อู่ช่างวิทย์ เซอร์วิส สุขุมวิท",
-    "serviceDate": "2026-10-26T14:30:00Z",
-    "mileageKm": 185420,
-    "serviceCategory": "ROUTINE_MAINTENANCE",
-    "title": "เปลี่ยนถ่ายน้ำมันเครื่องสังเคราะห์แท้และกรองโซล่า",
-    "details": "เปลี่ยนถ่ายน้ำมันเครื่อง 5W-30 API CK-4 ปริมาณ 7.5L, เปลี่ยนกรองโซล่าลูกแท้, ล้างวาล์ว SCV",
-    "replacedParts": [
-      {"name": "Toyota Genuine Oil 5W-30 (8L)", "partNumber": "08880-83389", "costThb": 1850.0},
-      {"name": "Fuel Filter Element", "partNumber": "23390-0L070", "costThb": 420.0}
-    ],
-    "laborCostThb": 500.0,
-    "totalCostThb": 2770.0,
-    "dtcSnapshot": ["P0087"],
-    "attachedPhotoUrls": ["https://firebasestorage.googleapis.com/..."],
-    "nextServiceMileageKm": 195000,
-    "nextServiceDate": "2027-04-26",
-    "hashChecksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  }
-  ```
-
-#### 4. Scalable Storage & Offline-First Sync
-- **Local Persistence**: Room SQLite database (`maintenance_logs` table) caches records offline and syncs bidirectionally upon network reconnection.
-- **Firebase Storage**: Stores high-resolution photos of invoices, receipts, and pre/post OBD-II diagnostic freeze frame reports.
-
-#### 5. Firestore Zero-Trust Security Rules
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    match /vehicles/{vehicleId} {
-      allow read: if request.auth != null && (
-        resource.data.ownerId == request.auth.uid ||
-        request.auth.uid in resource.data.sharedWith
-      );
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
-      
-      match /repair_logs/{logId} {
-        allow read: if request.auth != null && (
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.ownerId == request.auth.uid ||
-          request.auth.uid in get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.sharedWith
-        );
-        allow create, update: if request.auth != null && (
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.ownerId == request.auth.uid ||
-          request.auth.uid in get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.sharedWith
-        );
-        allow delete: if request.auth != null && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.ownerId == request.auth.uid;
-      }
-    }
-  }
-}
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            App Main Navigation                              │
+├───────────────────┬───────────────────┬───────────────────┬─────────────────┤
+│    [Dashboard]    │    [Diagnostics]  │   [Maintenance]   │   [VIN Scan]    │
+└─────────┬─────────┴─────────┬─────────┴─────────┬─────────┴────────┬────────┘
+          │                   │                   │                  │
+          ▼                   ▼                   ▼                  ▼
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   ┌──────────────┐
+  │ Live Gauges  │    │ Active DTCs  │    │ Service Log  │   │ Camera View  │
+  │  & Trends    │    │ & Live Scan  │    │ & Reminders  │   │ or Gallery   │
+  └───────┬──────┘    └───────┬──────┘    └───────┬──────┘   └───────┬──────┘
+          │                   │                   │                  │
+          ▼                   ▼                   ▼                  ▼
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   ┌──────────────┐
+  │ Sensor Alert │    │ Step-by-Step │    │ Cloud Sync   │   │ ISO 3779     │
+  │ Notification │    │ Multimeter   │    │ (Firestore   │   │ Decoder &    │
+  │ Dispatcher   │    │ Guide Modal  │    │  Specs Spec) │   │ Auto-Match   │
+  └──────────────┘    └──────────────┘    └──────────────┘   └──────────────┘
 ```
 
 ---
 
-## 3. VIN Scanner Integration (CameraX + Photo Picker + Decoder)
+## 3. Detailed Component Architecture
 
-### Architecture
-1. **CameraX Live Scanner (`VinCameraScannerView.kt`)**:
-   - Modern `PreviewView` with a high-contrast rectangular scanning target overlay.
-   - Real-time frame analysis using ML Kit Text Recognition to detect 17-character VIN formats (`[A-HJ-NPR-Z0-9]{17}`).
-   - Visual scan feedback with haptic confirmation upon successful lock-on.
-2. **Photo Gallery Picker**:
-   - Zero-permission Android Photo Picker (`ActivityResultContracts.PickVisualMedia`) for scanning photos of engine plates, registration books (เล่มทะเบียนรถ), or windscreen stickers.
-3. **ISO 3779 VIN Decoder Engine (`VinDecoder.kt`)**:
-   - **WMI (Characters 1–3)**: Identifies World Manufacturer & Country (e.g. `MR0` = Toyota Thailand, `MPA`/`MP1` = Isuzu Thailand, `MHR` = Honda Thailand, `MMT` = Mitsubishi Thailand, `AAV` = Thailand general, `1FA` = Ford USA, `JM0` = Mazda Japan).
-   - **VDS (Characters 4–9)**: Decodes body type, engine model, and check digit.
-   - **VIS (Characters 10–17)**:
-     - 10th Character = Model Year (e.g. `L`=1990, `M`=1991, `N`=1992, `P`=1993, `R`=1994, `S`=1995, `T`=1996, `V`=1997, `W`=1998, `X`=1999, `Y`=2000, `1`=2001, `2`=2002 ... `K`=2019, `L`=2020 ... `T`=2026).
-     - 11th Character = Assembly Plant (e.g. Gateway, Samrong, Ban Pho, Rayong).
-     - 12th–17th Characters = Sequential Production Serial Number.
-4. **Automatic Vehicle Matching & Auto-Population**:
-   - Instant query against `ThaiCarDatabase` matching the decoded Make, Model, Generation, and Engine code.
-   - Displays a vehicle card with engine displacement, oil capacity, tire pressures, baseline idle RPM, and OBD port location.
-   - Option to automatically register the vehicle or link to current diagnostic session.
+### A. Live Sensor Dashboard (`LiveDashboardScreen.kt`)
+1. **Circular Animated Gauges (`GaugeCluster.kt` enhanced)**:
+   - **Tachometer (RPM)**: 0 to 8000 RPM dial with green, amber, and redline zone arcs. Animated needle and center numerical readout.
+   - **Speedometer (km/h)**: 0 to 240 km/h with fluid sweeping acceleration physics.
+   - **Coolant Temperature (°C)**: Dial with warning threshold at 100°C and critical threshold at 108°C.
+   - **Common-Rail / Fuel Pressure (bar / kPa)**: Real-time reading with baseline tolerance bands.
+2. **Real-Time Sparkline History Cards**:
+   - 30-second rolling window Canvas sparkline graphing values for Intake Air Temperature, Battery Voltage, Mass Air Flow (MAF), and Throttle Position (TPS).
+   - High/Low peak badges and normal range indicators.
+3. **Critical Alert Banner**:
+   - Conditionally displayed when any sensor crosses dangerous thresholds (e.g., Coolant > 105°C, Voltage < 11.8V, Fuel Rail Pressure spike).
+   - One-tap "Diagnose Now" action navigating directly to diagnostic procedures.
+4. **Upcoming Service Countdown Card**:
+   - Days and mileage remaining until next engine oil change, fuel filter replacement, and brake inspection with quick action to add new service record.
+
+### B. Push Notification System (`DiagnosticNotificationHelper.kt`)
+1. **Channel Setup**:
+   - `channel_critical_alerts` (Importance HIGH, sound & vibration): Fires when live sensor telemetry breaches dangerous thresholds or critical trouble codes are detected.
+   - `channel_service_reminders` (Importance DEFAULT): Reminds user of upcoming scheduled maintenance (oil, belts, filters) based on accumulated mileage.
+   - `channel_diagnostic_reports` (Importance DEFAULT): Dispatches when comprehensive PDF/CSV diagnostic scan reports are generated and ready to share.
+2. **Notification Dispatch Logic & Testing**:
+   - Permissions check (`POST_NOTIFICATIONS` on API 33+).
+   - In-app notification trigger buttons allowing immediate simulation/verification of alert delivery and deep links back to the relevant screen.
+
+### C. Advanced DTC Analysis & Step-by-Step Multimeter Guides (`DtcDiagnosticGuide.kt`)
+1. **Interactive Step-by-Step Diagnostic Procedures**:
+   - For major OBD-II codes (e.g. `P0300` Random Misfire, `P0171` System Too Lean, `P0420` Catalyst Efficiency, `P0087` Low Fuel Rail Pressure, `P0101` MAF Sensor Range, `P0505` Idle Air Control, `P0340` Camshaft Position Sensor, `P0700` Transmission Control):
+     - **Symptom Overview**: Misfiring, black smoke, rough idle, stalling under load.
+     - **Probable Root Causes**: Ranked by frequency in Thai driving conditions (heat, humidity, B20 diesel sediment, aftermarket modifications).
+     - **Required Tools**: Digital Multimeter (DMM), backprobe pins, vacuum gauge, infrared thermometer.
+     - **Step 1: Visual & Mechanical Inspection**: Check intake boots, vacuum hoses, wiring harness chaffing, grounded grounds.
+     - **Step 2: Live PID Telemetry Check**: Normal expected sensor range vs actual vehicle reading.
+     - **Step 3: Electrical Multimeter Testing**:
+       - Exact probe points (Pin 1 12V B+, Pin 2 Ground, Pin 3 Signal).
+       - Resistance test (Ω at 20°C and 80°C).
+       - Voltage test (Key ON Engine OFF vs Idling).
+     - **Step 4: Actuator / Active Test Procedure**: Testing injector clicks, solenoid activation.
+     - **Step 5: Clearing & Drive Cycle Verification**: Specific drive cycle criteria to set OBD readiness monitors to "Ready".
+2. **Interactive Checklist UI**:
+   - Mechanics can tap checkboxes to track completed test steps with progress indicator (`3 / 5 Steps Verified`).
+
+### D. Expanded Thai Vehicle Database (Pre-2000 & Custom Models)
+1. **Pre-2000 Thai Automotive Icons in `ThaiCarDatabase.kt`**:
+   - **Toyota Hilux Mighty-X / Super LUX (1989–1997)**: `2L-II` 2.4L Diesel (89 hp), mechanical pump, Toyota 17-pin / 22-pin DLC OBD-I under hood.
+   - **Toyota Hilux Tiger / Tiger D4D (1998–2004)**: `5L` 3.0L NA, `1KZ-TE` 3.0L Turbo Diesel, `2KD-FTV` 2.5L D4D Common-Rail.
+   - **Toyota Corolla AE100 / AE101 "สามห่วง" (1992–1996)**: `4A-FE` 1.6L 16V DOHC (115 hp), TE1-E1 jumper diagnostic.
+   - **Toyota Soluna AL50 "หยดน้ำ / มุมส้ม" (1997–2002)**: `5A-FE` 1.5L Twin Cam EFI.
+   - **Isuzu TFR "มังกรทอง" / Dragon Eyes (1990–2002)**: `4JA1` 2.5L Direct Injection, `4JH1-T` 3.0L Turbo Direct Injection, Isuzu 3-pin DLC.
+   - **Honda Civic EG "เตารีด" (1992–1995)**: `D15B` 1.5L SOHC / VTEC, Honda 3-pin / 5-pin diagnostic connector.
+   - **Nissan Big-M / King Cab (1986–1997)**: `BD25` 2.5L Diesel, Nissan 14-pin Consult diagnostic port.
+   - **Mitsubishi L200 Strada (1996–2005)**: `4D56` 2.5L Turbo Diesel, dual 12-pin / OBD-II port.
+2. **OBD-I Connector Adapter Reference**:
+   - Detailed pinout conversion table for bridging Toyota 17/22-pin, Honda 3/5-pin, Nissan 14-pin, and Isuzu 3-pin to modern 16-pin ELM327 pins (Pin 4/5 Ground, Pin 16 12V B+, Pin 7 K-Line).
+3. **Custom Model Registration UI**:
+   - Modal allowing mechanics to add bespoke or swapped vehicles (e.g. 1JZ-GTE / 2JZ, SR20DET, K20A) with custom alert thresholds.
+
+### E. Secure Cloud Repair History Database Specification
+1. **Cryptographic Standards**:
+   - AES-256 Cloud KMS at rest; TLS 1.3 in transit.
+   - SHA-256 tamper-proof chain hash on each maintenance log (`hash = SHA256(vehicleId + prevHash + timestamp + mileage + partsCost)`).
+2. **Authentication & Authorization**:
+   - Google Sign-In via Jetpack Credential Manager.
+   - Zero-trust Firestore security rules segregating owner and workshop permissions.
+3. **In-App Integration & Interactive Specs Drawer**:
+   - Service record management with cryptographic verification badges and one-touch export.
+
+### F. On-Device VIN Scanner Integration
+1. **CameraX & ML Kit Integration**:
+   - Live camera preview with OCR bounding boxes filtered for 17-character ISO 3779 VIN pattern (`[A-HJ-NPR-Z0-9]{17}`).
+   - Photo picker support for selecting photos from device gallery.
+   - Flashlight (torch) toggle for dark engine bay inspections.
+2. **ISO 3779 VIN Decoder**:
+   - Decodes World Manufacturer Identifier (WMI - e.g. `MR0` for Toyota Thailand, `MP1` for Isuzu Thailand, `MHR` for Honda Thailand), Vehicle Descriptor Section (VDS), and Model Year (10th character mapping from 1980 to 2030).
+   - Auto-fills vehicle registration forms and matches with `ThaiCarDatabase`.
 
 ---
 
-## Proposed Changes
+## 4. Technical Architecture & Data Strategy
 
-### 1. Data Layer & Repository
-- **`app/src/main/java/com/example/data/model/ThaiCarSpec.kt`**: Add fields for vintage OBD connector type (OBD-II 16-pin vs. OBD-I manufacturer specific), adapter diagram references, and pre-2000 generation codes.
-- **`app/src/main/java/com/example/data/repository/ThaiCarDatabase.kt`**: Add 15+ iconic pre-2000 Thai market vehicles (Hilux Mighty-X, Hilux Tiger, Corolla AE101, Soluna AL50, Isuzu TFR มังกรทอง, Dragon Eyes, Honda Civic EG/EK, Nissan Big-M, Mitsubishi Strada, etc.).
-- **`app/src/main/java/com/example/data/repository/VinDecoder.kt`**: Complete ISO 3779 VIN decoder with Thai WMI database and model year mapping.
-- **`app/src/main/java/com/example/data/model/CloudRepairHistory.kt`**: Data models for repair logs, service records, and parts replacements.
-- **`app/src/main/java/com/example/data/repository/CloudRepairRepository.kt`**: Interface and implementation for Firestore synchronization, cryptographic hashing, and local Room cache fallback.
-
-### 2. Camera & Scanner Components
-- **`app/src/main/java/com/example/ui/components/VinScannerModal.kt`**: Compose dialog featuring CameraX live scanner, scanning rect guide, flashlight toggle, gallery image selector, and manual VIN entry with instant validation.
-- **`app/src/main/java/com/example/ui/components/CustomVehicleRegistrationDialog.kt`**: Dialog allowing users and mechanics to define and save custom or rare car models with tailored engine parameters.
-
-### 3. UI Screens & ViewModels
-- **`app/src/main/java/com/example/ui/MainViewModel.kt`**: Integrate VIN scanner state, decoded vehicle card, custom vehicle creation, and cloud repair log sync.
-- **`app/src/main/java/com/example/ui/screens/MaintenanceScreen.kt`**: Enhance maintenance logging with cloud sync badges, repair invoice breakdown, next service calculator, and VIN auto-link.
-- **`app/src/main/java/com/example/ui/screens/VehicleSpecsScreen.kt`**: Filter by year range (Pre-2000 classics, 2000-2015, 2015+ modern), show OBD-I adapter diagrams, and display VIN scanner button.
-
-### 4. Build Configuration & Manifest
-- **`app/build.gradle.kts`**: Enable CameraX dependencies (`camera2`, `lifecycle`, `view`, `core`) and ML Kit Text Recognition; enable Firestore and Credentials libraries.
-- **`app/src/main/AndroidManifest.xml`**: Declare `<uses-permission android:name="android.permission.CAMERA" />` with `uses-feature android:name="android.hardware.camera" android:required="false"`.
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            Presentation Layer                               │
+│  [LiveDashboardScreen]   [DiagnosticScannerScreen]   [MaintenanceScreen]    │
+│  - Animated Gauge Arc    - DtcDiagnosticGuide Modal  - Service Reminders    │
+│  - Canvas Sparklines     - Multimeter Test Steps     - History Log & Crypto │
+│  - Alert Banners         - Live Sensor Checkpoints   - Cloud Spec Drawer    │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        MainViewModel & State Flow                           │
+│  - uiState: DashboardUiState, DiagnosticUiState, MaintenanceUiState         │
+│  - Telemetry Engine (interpolated live PIDs, threshold monitors)            │
+│  - Notification Dispatcher (checks thresholds -> triggers system channels)  │
+│  - VIN Scanner Controller (CameraX Analyzer + ML Kit Text Recognizer)       │
+└───────────────────┬───────────────────────────────────┬─────────────────────┘
+                    │                                   │
+                    ▼                                   ▼
+┌──────────────────────────────────────┐  ┌───────────────────────────────────┐
+│           Repository Layer           │  │          Device Services          │
+│  - ThaiCarDatabase (Pre-2000 & OBD1) │  │  - DiagnosticNotificationHelper   │
+│  - DtcDatabase & DiagnosticGuideRepo │  │    (Channels & System Alerts)     │
+│  - Room Database (Offline Cache)     │  │  - CameraX & ML Kit OCR Provider  │
+│  - Firestore Cloud Sync (Specs/Model)│  │  - Haptic Feedback & Vibrator     │
+└──────────────────────────────────────┘  └───────────────────────────────────┘
+```
 
 ---
 
-## Verification Plan
+## 5. Verification & Testing Plan
 
-### Automated & Unit Tests
-1. **VIN Decoding Tests (`VinDecoderTest.kt`)**:
-   - Verify decoding of Thai VINs (e.g., Toyota `MR0...`, Isuzu `MPA...`, Honda `MHR...`).
-   - Validate model year calculation for 1990–2026.
-   - Verify check digit validation and invalid character rejection (`I`, `O`, `Q`).
-2. **Vehicle Database Coverage**:
-   - Verify retrieval of newly added pre-2000 vehicles (Mighty-X, TFR, Civic EG, etc.).
-   - Verify custom vehicle registration persistence.
-3. **Compilation**:
-   - Run `compile_applet` to ensure all Kotlin, Compose, CameraX, and ML Kit dependencies compile cleanly with zero errors.
-
-### Manual Verification Flow
-1. **VIN Scanner**:
-   - Open Vehicle Specs or Diagnostic Screen -> Click "Scan VIN" button.
-   - Test Camera preview with scanning target.
-   - Test Gallery image upload with sample VIN images.
-   - Verify auto-populated Make, Model, Year, and Engine Specs.
-2. **Pre-2000 Vehicles & Adapter Guide**:
-   - Filter vehicles by "Classic / Pre-2000" in the specs browser.
-   - Verify Mighty-X, TFR มังกรทอง, and Civic EG display correct oil capacity, tire pressures, and OBD-I pinout instructions.
-3. **Cloud Repair History**:
-   - Add new repair record with parts, costs, and mileage.
-   - Verify checksum generation and display of formatted service history.
+1. **Compilation Verification**:
+   - Execute `compile_applet` to verify clean build across all new components, CameraX, and ML Kit dependencies.
+2. **Live Sensor Dashboard Verification**:
+   - Test smooth gauge sweep animations and dynamic sparkline chart point rendering under varying telemetry values.
+   - Verify threshold triggering of critical alert banners when coolant or voltage thresholds are breached.
+3. **Notification System Verification**:
+   - Verify creation of all 3 notification channels on Android system.
+   - Test in-app dispatch of critical sensor warning, service interval reminder, and report completion alerts.
+4. **DTC Diagnostic Guide Verification**:
+   - Test interactive step-by-step troubleshooting workflow for multiple DTCs (e.g. `P0300`, `P0171`, `P0087`).
+   - Verify multimeter pinout values, normal range displays, and interactive checklist state transitions.
+5. **Thai Vehicle Database & VIN Scanner**:
+   - Test ISO 3779 decoding with Thai WMI prefixes (`MR0`, `MP1`, `MHR`) and pre-2000 model year letters (`N`=1992, `S`=1995, `W`=1998, `Y`=2000).
+   - Test camera preview and image picker text recognition flow.

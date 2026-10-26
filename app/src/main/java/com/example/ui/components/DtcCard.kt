@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -226,6 +227,27 @@ fun DtcCodeCard(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    var showGuideDialog by remember { mutableStateOf(false) }
+
+                    Button(
+                        onClick = { showGuideDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AutoCyan
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isThai) "📋 คู่มือตรวจเช็กทีละขั้นตอน & มิเตอร์" else "📋 Step-by-Step Diagnostic & Multimeter Guide",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedButton(
                         onClick = { onConsultAi(dtc) },
                         modifier = Modifier.fillMaxWidth(),
@@ -238,6 +260,17 @@ fun DtcCodeCard(
                         Icon(imageVector = Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = if (isThai) "ปรึกษาช่าง AI สำหรับรหัสนี้" else "Consult AI Mechanic on this DTC")
+                    }
+
+                    if (showGuideDialog) {
+                        val guide = com.example.data.repository.DtcGuideDatabase.getGuideForDtc(dtc.code)
+                        if (guide != null) {
+                            DtcDiagnosticGuideDialog(
+                                guide = guide,
+                                isThai = isThai,
+                                onDismiss = { showGuideDialog = false }
+                            )
+                        }
                     }
                 }
             }
