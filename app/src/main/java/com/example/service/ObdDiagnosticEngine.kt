@@ -160,10 +160,11 @@ class ObdDiagnosticEngine {
         updateProgress(1.0f, "Scan Complete", onProgress)
 
         val dtcList = detectedDtcs.values.toList()
-        val finalStatus = if (dtcList.isNotEmpty()) {
-            DiagnosticScanStatus.SUCCESS
-        } else {
-            DiagnosticScanStatus.NO_DTC
+        val modeResponses = evidenceList.drop(2)
+        val finalStatus = when {
+            modeResponses.any { !it.isSuccess } -> DiagnosticScanStatus.COMMUNICATION_ERROR
+            dtcList.isNotEmpty() -> DiagnosticScanStatus.SUCCESS
+            else -> DiagnosticScanStatus.NO_DTC
         }
 
         _scanStatus.value = finalStatus
@@ -221,7 +222,7 @@ class ObdDiagnosticEngine {
 
                 lastResp = sb.toString().trim()
                 val latency = System.currentTimeMillis() - startTime
-                val success = lastResp.isNotBlank() && !lastResp.contains("ERROR", true)
+                val success = lastResp.isNotBlank() && !isAdapterErrorResponse(lastResp)
 
                 if (success || attempt == maxRetries) {
                     val entry = TerminalLogEntry(
@@ -253,6 +254,12 @@ class ObdDiagnosticEngine {
             isSuccess = false
         )
         return Pair(lastResp, entry)
+    }
+
+    internal fun isAdapterErrorResponse(raw: String): Boolean {
+        val normalized = raw.uppercase()
+        return listOf("ERROR", "UNABLE TO CONNECT", "BUS INIT: ERROR", "BUS ERROR", "CAN ERROR", "STOPPED")
+            .any { normalized.contains(it) }
     }
 
     private fun cleanResponse(raw: String): String {
