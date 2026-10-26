@@ -32,6 +32,7 @@ import com.example.data.repository.ThaiCarDatabase
 import com.example.service.DrivingMode
 import com.example.service.NotificationHelper
 import com.example.service.Obd2EmulatorService
+import com.example.service.isMode04ClearAcknowledged
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1109,8 +1110,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Clear Fault Codes (Mode 04 / UDS 0x14 ECU Reset) for specific system or all
-    fun clearDtcFaultCodes(system: DiagnosticSystem = DiagnosticSystem.ALL) {
+    // Clear generic OBD-II engine DTCs or simulated DTCs.
+    fun clearDtcFaultCodes(
+        system: DiagnosticSystem = DiagnosticSystem.ALL,
+        confirmPhysicalClear: Boolean = false
+    ) {
+        if (_operationMode.value == AppOperationMode.REAL_HARDWARE) {
+            val isTh = _language.value == AppLanguage.TH
+            if (!confirmPhysicalClear) {
+                _currentScanSystem.value = if (isTh) {
+                    "การลบรหัสบนรถจริงต้องยืนยันจากหน้าสแกนวินิจฉัยก่อน"
+                } else {
+                    "Physical DTC clearing must be confirmed from the diagnostic scanner."
+                }
+                return
+            }
+            if (system != DiagnosticSystem.ALL && system != DiagnosticSystem.ENGINE) {
+                _currentScanSystem.value = if (isTh) {
+                    "คำสั่ง OBD-II Mode 04 ใช้ได้กับรหัสเครื่องยนต์เท่านั้น ไม่มีการส่งคำสั่งหรือลบรหัส"
+                } else {
+                    "Generic OBD-II Mode 04 only targets engine DTCs. No command was sent and no codes were cleared."
+                }
+                return
+            }
+            if (_connectionType.value != ObdConnectionType.USB_OTG || !usbDriver.isUsbConnected.value) {
+                _currentScanSystem.value = if (isTh) {
+                    "ไม่พบการเชื่อมต่อ OBD-II USB จึงไม่ได้ส่งคำสั่งลบรหัส"
+                } else {
+                    "OBD-II USB is not connected. No clear command was sent."
+                }
+                return
+            }
+            if (_isScanning.value) {
+                _currentScanSystem.value = if (isTh) {
+                    "กำลังสแกนอยู่ จึงยังไม่ได้ส่งคำสั่งลบรหัส"
+                } else {
+                    "A scan is in progress. No clear command was sent."
+                }
+                return
+            }
+
+            _currentScanSystem.value = if (isTh) {
+                "กำลังส่งคำสั่ง OBD-II Mode 04 ไปยังกล่องเครื่องยนต์..."
+            } else {
+                "Sending OBD-II Mode 04 to the engine ECU..."
+            }
+            usbDriver.sendCustomCommand("04") { response ->
+                val clearAcknowledged = isMode04ClearAcknowledged(response)
+                _currentScanSystem.value = if (clearAcknowledged) {
+                    if (isTh) {
+                        "กล่องเครื่องยนต์ตอบรับคำสั่ง Mode 04 แล้ว สแกนซ้ำเพื่อตรวจสอบ; รหัสถาวรและโมดูลอื่นอาจยังอยู่"
+                    } else {
+                        "Engine ECU acknowledged Mode 04. Rescan to verify; permanent and other-module codes may remain."
+                    }
+                } else {
+                    if (isTh) {
+                        "ไม่ได้รับการยืนยัน Mode 04 รหัสและสถานะในแอปยังไม่เปลี่ยน"
+                    } else {
+                        "Mode 04 was not acknowledged. DTCs and app status were left unchanged."
+                    }
+                }
+                if (clearAcknowledged) _diagnosticReport.value = null
+            }
+            return
+        }
+
         viewModelScope.launch {
             if (system == DiagnosticSystem.ALL) {
                 _activeDtcs.value = emptyList()
@@ -1121,10 +1185,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isMilOn.value = _activeDtcs.value.isNotEmpty()
             _diagnosticReport.value = null
             emulatorService.clearDtcAndResetEcu()
-
-            val vehicle = selectedVehicle.value
-            if (vehicle != null) {
-                vehicleDao.updateVehicle(vehicle.copy(healthScore = 98, lastScanDate = System.currentTimeMillis()))
+            _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
+                "ล้างรหัสจำลองแล้ว (ไม่ได้ส่งคำสั่งไปยังรถจริง)"
+            } else {
+                "Simulated DTCs cleared (no command was sent to a vehicle)."
             }
             recalculatePredictiveHealth()
         }
@@ -1388,3 +1452,4 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
+
