@@ -91,7 +91,7 @@ import java.util.Calendar
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.auth.FirebaseAuth
-import com.example.ui.screens.SignInScreen
+import com.example.ui.screens.LoginScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,8 +128,8 @@ class MainActivity : ComponentActivity() {
 
             MyApplicationTheme(darkTheme = isDarkTheme) {
                 if (currentUser == null && !isGuestMode) {
-                    SignInScreen(
-                        onAuthSuccess = { currentUser = Firebase.auth.currentUser },
+                    LoginScreen(
+                        onLoginSuccess = { currentUser = Firebase.auth.currentUser },
                         onGuestContinue = { isGuestMode = true }
                     )
                 } else {
