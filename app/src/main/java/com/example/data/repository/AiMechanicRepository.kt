@@ -1,25 +1,23 @@
 package com.example.data.repository
 
 import android.util.Log
-import com.example.BuildConfig
 import com.example.data.model.AppLanguage
 import com.example.data.model.ChatMessage
 import com.example.data.model.DtcCode
 import com.example.data.model.FreezeFrameData
 import com.example.data.model.MessageSender
 import com.example.data.model.Vehicle
-import com.example.data.remote.GeminiApiService
-import com.example.data.remote.GeminiContent
-import com.example.data.remote.GeminiGenerationConfig
-import com.example.data.remote.GeminiPart
-import com.example.data.remote.GeminiThinkingConfig
-import com.example.data.remote.GenerateContentRequest
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.cancellation.CancellationException
 
-class AiMechanicRepository(
-    private val apiService: GeminiApiService = GeminiApiService.create()
-) {
+class AiMechanicRepository {
 
     suspend fun chat(
         conversation: List<ChatMessage>,
@@ -28,12 +26,6 @@ class AiMechanicRepository(
         vehicleContext: String = "Toyota Hilux Revo 2021 2.4 GD Diesel (68,500 km)",
         language: AppLanguage = AppLanguage.TH
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Exception) {
-            ""
-        }
-
         val systemInstructionText = if (language == AppLanguage.TH) {
             """
             คุณคือ "ช่างยนต์ผู้เชี่ยวชาญ AI (Master Mechanic Thailand)" ประจำศูนย์วิเคราะห์ปัญหา OBD-II
@@ -59,73 +51,37 @@ class AiMechanicRepository(
             """.trimIndent()
         }
 
-        val contentsList = mutableListOf<GeminiContent>()
-        // Include recent conversation history (max 6 turns)
-        conversation.takeLast(6).forEach { msg ->
-            val role = if (msg.sender == MessageSender.USER) "user" else "model"
-            contentsList.add(
-                GeminiContent(
-                    role = role,
-                    parts = listOf(GeminiPart(text = msg.text))
-                )
-            )
-        }
-        contentsList.add(
-            GeminiContent(
-                role = "user",
-                parts = listOf(GeminiPart(text = userPrompt))
-            )
-        )
-
-        val primaryModel = "gemini-2.5-flash"
-        val fallbackModel = "gemini-1.5-flash"
-        val generationConfig = if (enableHighThinking) {
-            GeminiGenerationConfig(
-                temperature = 0.4f,
-                thinkingConfig = GeminiThinkingConfig(thinkingLevel = "high")
-            )
-        } else {
-            GeminiGenerationConfig(
-                temperature = 0.7f
-            )
-        }
-
-        val request = GenerateContentRequest(
-            contents = contentsList,
-            generationConfig = generationConfig,
-            systemInstruction = GeminiContent(
-                parts = listOf(GeminiPart(text = systemInstructionText))
-            )
-        )
-
-        if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY" && apiKey != "YOUR_API_KEY") {
-            // Try primary model
-            try {
-                val response = apiService.generateContent(
-                    model = primaryModel,
-                    apiKey = apiKey,
-                    request = request
-                )
-                val responseText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                if (!responseText.isNullOrBlank()) {
-                    return@withContext responseText
+        try {
+            val model = Firebase.ai.generativeModel(
+                modelName = "gemini-3.8-flash",
+                systemInstruction = content { text(systemInstructionText) },
+                generationConfig = generationConfig {
+                    temperature = if (enableHighThinking) 0.4f else 0.7f
                 }
-            } catch (e: Exception) {
-                Log.w("AiMechanicRepository", "Primary Gemini model ($primaryModel) error: ${e.message}. Trying fallback model ($fallbackModel)")
-                try {
-                    val fallbackResponse = apiService.generateContent(
-                        model = fallbackModel,
-                        apiKey = apiKey,
-                        request = request
-                    )
-                    val fallbackText = fallbackResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                    if (!fallbackText.isNullOrBlank()) {
-                        return@withContext fallbackText
-                    }
-                } catch (e2: Exception) {
-                    Log.e("AiMechanicRepository", "Fallback Gemini model error: ${e2.message}", e2)
-                }
+            )
+
+            // Build chat history for multi-turn conversation
+            val history = conversation.takeLast(6).map { msg ->
+                val role = if (msg.sender == MessageSender.USER) "user" else "model"
+                content(role) { text(msg.text) }
             }
+
+            val chatSession = model.startChat(history = history)
+
+            val response = withTimeout(60_000L) {
+                chatSession.sendMessage(userPrompt)
+            }
+
+            val text = response.text
+            if (!text.isNullOrBlank()) {
+                return@withContext text
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e("AiMechanicRepository", "Firebase AI generation timed out", e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e("AiMechanicRepository", "Firebase AI chat failed", e)
         }
 
         // Offline / Fallback Intelligent Mechanic Response
@@ -178,6 +134,73 @@ class AiMechanicRepository(
             vehicleContext = "${vehicle.make} ${vehicle.model} (${vehicle.year})",
             language = language
         )
+    }
+
+    suspend fun generateRepairManual(
+        vehicle: Vehicle?,
+        dtcs: List<DtcCode>,
+        language: AppLanguage = AppLanguage.TH
+    ): String = withContext(Dispatchers.IO) {
+        val vehicleContext = if (vehicle != null) "${vehicle.make} ${vehicle.model} ${vehicle.year} ${vehicle.engine}" else "Unknown Vehicle"
+        val dtcContext = if (dtcs.isEmpty()) "No DTCs" else dtcs.joinToString(", ") { "${it.code} - ${it.enTitle}" }
+
+        val systemInstructionText = if (language == AppLanguage.TH) {
+            """
+            คุณคือ "ผู้เชี่ยวชาญการจัดทำคู่มือซ่อมรถยนต์ (Technical Repair Manual AI)" 
+            หน้าที่ของคุณคือดึงข้อมูล Service Manual, Wiring Diagram (แบบจำลองข้อความ), และขั้นตอนการถอดประกอบซ่อมบำรุงที่ตรงกับรุ่นรถและรหัสปัญหา (DTC)
+            รถยนต์: $vehicleContext
+            รหัสปัญหา: $dtcContext
+            รูปแบบการตอบ:
+            1. หัวข้อ: คู่มือซ่อมและผังระบบ (Technical Service Manual & Repair Guide)
+            2. การระบุชิ้นส่วน (Component Identification) พร้อมตำแหน่งติดตั้ง (Location)
+            3. แผนผังระบบ (System Diagram/Wiring Schematic) อธิบายเป็นข้อความ
+            4. ขั้นตอนการตรวจเช็ค (Diagnostic Procedures - ขั้นตอนที่ 1, 2, 3...)
+            5. ขั้นตอนการถอดและประกอบ (Removal & Installation Steps) ระบุเครื่องมือที่ต้องใช้และแรงบิด (Torque Specs) ถ้าเป็นไปได้
+            ตอบเป็นทางการ สไตล์คู่มือซ่อม (Service Manual)
+            """.trimIndent()
+        } else {
+            """
+            You are "Technical Repair Manual AI".
+            Your task is to generate a comprehensive OEM-style service manual, procedural repair guide, and textual wiring diagram based on the vehicle and DTC codes.
+            Vehicle: $vehicleContext
+            DTCs: $dtcContext
+            Format:
+            1. Title: Technical Service Manual & Repair Guide
+            2. Component Identification & Location
+            3. System Diagram / Wiring Schematic (Textual Description)
+            4. Diagnostic Procedures (Step 1, Step 2...)
+            5. Removal & Installation Steps (Include Tools Needed and Torque Specs if possible)
+            Use a formal, technical service manual tone.
+            """.trimIndent()
+        }
+
+        try {
+            val model = Firebase.ai.generativeModel(
+                modelName = "gemini-3.8-flash",
+                systemInstruction = content { text(systemInstructionText) },
+                generationConfig = generationConfig {
+                    temperature = 0.2f
+                }
+            )
+
+            val response = withTimeout(60_000L) {
+                model.generateContent("Please generate the repair manual for the current issues.")
+            }
+
+            val text = response.text
+            if (!text.isNullOrBlank()) {
+                return@withContext text
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e("AiMechanicRepository", "Repair manual generation timed out", e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e("AiMechanicRepository", "Firebase AI repair manual generation failed", e)
+        }
+
+        // Offline Fallback Repair Manual Generation
+        return@withContext generateOfflineRepairManual(vehicle, dtcs, language)
     }
 
     private fun generateOfflineMechanicResponse(
@@ -292,87 +315,6 @@ class AiMechanicRepository(
         }
     }
 
-    suspend fun generateRepairManual(
-        vehicle: Vehicle?,
-        dtcs: List<DtcCode>,
-        language: AppLanguage = AppLanguage.TH
-    ): String = withContext(Dispatchers.IO) {
-        val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Exception) { "" }
-
-        val vehicleContext = if (vehicle != null) "${vehicle.make} ${vehicle.model} ${vehicle.year} ${vehicle.engine}" else "Unknown Vehicle"
-        val dtcContext = if (dtcs.isEmpty()) "No DTCs" else dtcs.joinToString(", ") { "${it.code} - ${it.enTitle}" }
-
-        val systemInstructionText = if (language == AppLanguage.TH) {
-            """
-            คุณคือ "ผู้เชี่ยวชาญการจัดทำคู่มือซ่อมรถยนต์ (Technical Repair Manual AI)" 
-            หน้าที่ของคุณคือดึงข้อมูล Service Manual, Wiring Diagram (แบบจำลองข้อความ), และขั้นตอนการถอดประกอบซ่อมบำรุงที่ตรงกับรุ่นรถและรหัสปัญหา (DTC)
-            รถยนต์: $vehicleContext
-            รหัสปัญหา: $dtcContext
-            รูปแบบการตอบ:
-            1. หัวข้อ: คู่มือซ่อมและผังระบบ (Technical Service Manual & Repair Guide)
-            2. การระบุชิ้นส่วน (Component Identification) พร้อมตำแหน่งติดตั้ง (Location)
-            3. แผนผังระบบ (System Diagram/Wiring Schematic) อธิบายเป็นข้อความ
-            4. ขั้นตอนการตรวจเช็ค (Diagnostic Procedures - ขั้นตอนที่ 1, 2, 3...)
-            5. ขั้นตอนการถอดและประกอบ (Removal & Installation Steps) ระบุเครื่องมือที่ต้องใช้และแรงบิด (Torque Specs) ถ้าเป็นไปได้
-            ตอบเป็นทางการ สไตล์คู่มือซ่อม (Service Manual)
-            """.trimIndent()
-        } else {
-            """
-            You are "Technical Repair Manual AI".
-            Your task is to generate a comprehensive OEM-style service manual, procedural repair guide, and textual wiring diagram based on the vehicle and DTC codes.
-            Vehicle: $vehicleContext
-            DTCs: $dtcContext
-            Format:
-            1. Title: Technical Service Manual & Repair Guide
-            2. Component Identification & Location
-            3. System Diagram / Wiring Schematic (Textual Description)
-            4. Diagnostic Procedures (Step 1, Step 2...)
-            5. Removal & Installation Steps (Include Tools Needed and Torque Specs if possible)
-            Use a formal, technical service manual tone.
-            """.trimIndent()
-        }
-
-        val request = GenerateContentRequest(
-            contents = listOf(
-                GeminiContent(
-                    role = "user",
-                    parts = listOf(GeminiPart(text = "Please generate the repair manual for the current issues."))
-                )
-            ),
-            systemInstruction = GeminiContent(
-                role = "user",
-                parts = listOf(GeminiPart(text = systemInstructionText))
-            ),
-            generationConfig = GeminiGenerationConfig(
-                temperature = 0.2f
-            )
-        )
-
-        if (apiKey.isNotBlank() && !apiKey.contains("YOUR_API_KEY") && !apiKey.contains("REPLACE_ME") && !apiKey.contains("MY_GEMINI_API_KEY")) {
-            try {
-                val response = apiService.generateContent("gemini-2.5-flash", apiKey, request)
-                val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                if (!text.isNullOrBlank()) {
-                    return@withContext text
-                }
-            } catch (e: Exception) {
-                Log.w("AiMechanicRepository", "Primary model error in generateRepairManual: ${e.message}. Trying fallback gemini-1.5-flash")
-                try {
-                    val fallbackResponse = apiService.generateContent("gemini-1.5-flash", apiKey, request)
-                    val fallbackText = fallbackResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                    if (!fallbackText.isNullOrBlank()) {
-                        return@withContext fallbackText
-                    }
-                } catch (e2: Exception) {
-                    Log.e("AiMechanicRepository", "Error generating manual with Gemini API", e2)
-                }
-            }
-        }
-
-        // Offline Fallback Repair Manual Generation
-        return@withContext generateOfflineRepairManual(vehicle, dtcs, language)
-    }
-
     private fun generateOfflineRepairManual(
         vehicle: Vehicle?,
         dtcs: List<DtcCode>,
@@ -419,7 +361,7 @@ class AiMechanicRepository(
             2. **วัดความต้านทานวาล์ว SCV Solenoid:**
                - ปลดปลั๊กไฟ SCV ออก แล้วใช้มัลติมิเตอร์วัดค่า Ohms
                - ค่ามาตรฐาน ณ อุณหภูมิ 20°C ควรอยู่ที่ **1.8 Ω - 2.4 Ω** (หากได้ 0 Ω หรือ ∞ แสดงว่าคอยล์ช็อตหรือขาด)
-3. **ตรวจวัดแรงดันรางคอมมอนเรลผ่าน Live Data:**
+            3. **ตรวจวัดแรงดันรางคอมมอนเรลผ่าน Live Data:**
                - ขณะเดินเบา (Idle): **30 - 35 MPa (300 - 350 Bar)**
                - ขณะเร่งเครื่องสุด (WOT): **140 - 180+ MPa (1400 - 1800+ Bar)**
 
@@ -462,7 +404,7 @@ class AiMechanicRepository(
                ├── Pin A22 (Sensor GND) ────► [Fuel Pressure Sensor Pin 3]
                │
                ├── Pin B05 (SCV High PWM) ──► [SCV Valve Solenoid Pin 1]
-               └── Pin B12 (SCV Return) ────► [SCV Valve Solenoid Pin 2]
+               └── Pin B12 (SCV Return) ────► [SCV Solenoid Ground Pin 2]
             ```
 
             ---
@@ -471,7 +413,7 @@ class AiMechanicRepository(
             1. **Reference Voltage Test (+5V Ref):**
                - Turn Key ON (Engine OFF).
                - Measure voltage across Sensor Pin 1 and Ground. Expected: **4.9V - 5.1V DC**.
-2. **SCV Solenoid Coil Resistance Test:**
+            2. **SCV Solenoid Coil Resistance Test:**
                - Disconnect SCV connector.
                - Measure resistance across solenoid terminals. Expected spec at 20°C: **1.8 Ω - 2.4 Ω**.
             3. **Rail Pressure Live Data Inspection:**

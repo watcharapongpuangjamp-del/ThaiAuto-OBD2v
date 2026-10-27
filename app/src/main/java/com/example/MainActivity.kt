@@ -96,6 +96,7 @@ import com.example.ui.screens.SignInScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configureAppCheck(this, intent)
         enableEdgeToEdge()
         setContent {
             val mainViewModel: MainViewModel = viewModel()
@@ -135,6 +136,31 @@ class MainActivity : ComponentActivity() {
                     MainAppContent(viewModel = mainViewModel)
                 }
             }
+        }
+    }
+
+    private fun configureAppCheck(context: android.content.Context, intent: android.content.Intent?) {
+        try {
+            val appCheck = com.google.firebase.appcheck.FirebaseAppCheck.getInstance()
+            val isDebug = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            if (isDebug) {
+                val providerFactory = com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory.getInstance()
+                appCheck.installAppCheckProviderFactory(providerFactory)
+                val debugToken = intent?.getStringExtra("FIREBASE_APPCHECK_DEBUG_TOKEN")
+                if (!debugToken.isNullOrEmpty()) {
+                    val prefs = context.getSharedPreferences("com.google.firebase.appcheck.debug.store", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putString("F_AC_D_T", debugToken).commit()
+                }
+            } else {
+                val resId = context.resources.getIdentifier("recaptcha_site_key", "string", context.packageName)
+                val recaptchaSiteKey = if (resId != 0) context.getString(resId) else ""
+                if (recaptchaSiteKey.isNotEmpty() && recaptchaSiteKey != "YOUR_RECAPTCHA_SITE_KEY") {
+                    val providerFactory = com.google.firebase.appcheck.recaptcha.RecaptchaAppCheckProviderFactory.getInstance()
+                    appCheck.installAppCheckProviderFactory(providerFactory)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AppCheck", "Failed to configure App Check", e)
         }
     }
 }

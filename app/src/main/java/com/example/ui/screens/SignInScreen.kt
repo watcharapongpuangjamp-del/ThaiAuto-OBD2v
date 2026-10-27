@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.R
 import android.app.Activity
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
@@ -15,23 +16,38 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +59,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +69,8 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
+import com.example.ui.theme.AutoCyan
+import com.example.ui.theme.AutoGreen
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
@@ -59,9 +80,6 @@ import com.google.firebase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import com.example.R
-import com.example.ui.theme.AutoCyan
-import com.example.ui.theme.AutoGreen
 
 @Composable
 fun SignInScreen(
@@ -73,6 +91,11 @@ fun SignInScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var selectedAuthModeTab by remember { mutableIntStateOf(0) } // 0: Sign In, 1: Sign Up
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -80,14 +103,17 @@ fun SignInScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
             // App Logo / Icon Header
             Box(
                 modifier = Modifier
-                    .size(96.dp)
+                    .size(80.dp)
                     .clip(CircleShape)
                     .background(AutoCyan.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
@@ -96,11 +122,11 @@ fun SignInScreen(
                     imageVector = Icons.Default.DirectionsCar,
                     contentDescription = null,
                     tint = AutoCyan,
-                    modifier = Modifier.size(54.dp)
+                    modifier = Modifier.size(46.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 text = "Thai Auto OBD-II Pro",
@@ -109,155 +135,229 @@ fun SignInScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "ระบบวินิจฉัยรถยนต์อัจฉริยะ & ซิงค์ประวัติการซ่อมบนคลาวด์ปลอดภัย",
+                text = "ระบบวินิจฉัยรถยนต์อัจฉริยะ & ซิงค์ประวัติบน Firebase",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Feature Highlights Card
+            // Auth Card Container
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                border = BorderStroke(1.dp, AutoGreen.copy(alpha = 0.3f))
+                border = BorderStroke(1.dp, AutoCyan.copy(alpha = 0.3f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    FeatureRow(
-                        icon = Icons.Default.CloudSync,
-                        title = "Cloud Maintenance Sync",
-                        desc = "สำรองข้อมูลการบำรุงรักษาและประวัติ DTC บน Firebase ปลอดภัยไร้กังวล"
-                    )
-                    FeatureRow(
-                        icon = Icons.Default.Security,
-                        title = "Zero-Trust Security",
-                        desc = "ปกป้องความเป็นส่วนตัวด้วย Google Sign-In และระบบความปลอดภัยมาตรฐานสูงสุด"
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFE53935),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-            }
-
-            // Google Sign In Button
-            Button(
-                onClick = {
-                    isLoading = true
-                    errorMessage = null
-                    performGoogleSignIn(
-                        context = context,
-                        coroutineScope = coroutineScope,
-                        onSuccess = {
-                            isLoading = false
-                            onAuthSuccess()
-                        },
-                        onError = { err ->
-                            isLoading = false
-                            errorMessage = err
-                        },
-                        onCancelled = {
-                            isLoading = false
-                        }
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("btn_google_sign_in"),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                enabled = !isLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    // Sign In / Sign Up Tabs
+                    TabRow(
+                        selectedTabIndex = selectedAuthModeTab,
+                        containerColor = Color.Transparent,
+                        contentColor = AutoCyan,
+                        divider = {}
                     ) {
-                        Text(
-                            text = "Sign in with Google",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimary
+                        Tab(
+                            selected = selectedAuthModeTab == 0,
+                            onClick = { selectedAuthModeTab = 0; errorMessage = null },
+                            text = { Text("เข้าสู่ระบบ (Sign In)", fontWeight = FontWeight.Bold) }
                         )
+                        Tab(
+                            selected = selectedAuthModeTab == 1,
+                            onClick = { selectedAuthModeTab = 1; errorMessage = null },
+                            text = { Text("ลงทะเบียน (Sign Up)", fontWeight = FontWeight.Bold) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Email Field
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("อีเมล (Email)") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = AutoCyan) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_email"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AutoCyan,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Password Field
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("รหัสผ่าน (Password)") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AutoCyan) },
+                        trailingIcon = {
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = "Toggle password visibility"
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_password"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AutoCyan,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+
+                    if (errorMessage != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = errorMessage!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE53935),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Email/Password Submit Button
+                    Button(
+                        onClick = {
+                            if (email.isBlank() || password.isBlank()) {
+                                errorMessage = "กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วน"
+                                return@Button
+                            }
+                            isLoading = true
+                            errorMessage = null
+                            coroutineScope.launch {
+                                try {
+                                    if (selectedAuthModeTab == 0) {
+                                        Firebase.auth.signInWithEmailAndPassword(email.trim(), password).await()
+                                    } else {
+                                        Firebase.auth.createUserWithEmailAndPassword(email.trim(), password).await()
+                                    }
+                                    isLoading = false
+                                    onAuthSuccess()
+                                } catch (e: Exception) {
+                                    isLoading = false
+                                    Log.e("Auth", "Email auth failed", e)
+                                    errorMessage = e.localizedMessage ?: "การยืนยันตัวตนล้มเหลว"
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("btn_email_submit"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AutoCyan),
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
+                            Text(
+                                text = if (selectedAuthModeTab == 0) "เข้าสู่ระบบด้วยอีเมล" else "สมัครสมาชิกด้วยอีเมล",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color.Black
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                        Text(
+                            text = " หรือ ",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Google Sign In Button
+                    Button(
+                        onClick = {
+                            isLoading = true
+                            errorMessage = null
+                            performGoogleSignIn(
+                                context = context,
+                                coroutineScope = coroutineScope,
+                                onSuccess = {
+                                    isLoading = false
+                                    onAuthSuccess()
+                                },
+                                onError = { err ->
+                                    isLoading = false
+                                    errorMessage = err
+                                },
+                                onCancelled = {
+                                    isLoading = false
+                                }
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("btn_google_sign_in"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                        } else {
+                            Text(
+                                text = "Sign in with Google",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Offline / Guest Mode Button
-            Button(
+            // Guest Mode Button
+            TextButton(
                 onClick = onGuestContinue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("btn_guest_mode"),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = AutoCyan),
-                border = BorderStroke(1.dp, AutoCyan.copy(alpha = 0.5f))
+                modifier = Modifier.testTag("btn_guest_mode")
             ) {
                 Text(
-                    text = "เข้าใช้งานแบบ Offline / Demo",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                    text = "เข้าใช้งานแบบ Offline / Demo Mode",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = AutoCyan
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun FeatureRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    desc: String
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .background(AutoGreen.copy(alpha = 0.2f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(imageVector = icon, contentDescription = null, tint = AutoGreen, modifier = Modifier.size(20.dp))
-        }
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = desc,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -270,8 +370,7 @@ private fun performGoogleSignIn(
     onCancelled: () -> Unit
 ) {
     val clientId = try {
-        val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-        if (resId != 0) context.getString(resId) else ""
+        context.getString(R.string.default_web_client_id)
     } catch (e: Exception) {
         ""
     }
