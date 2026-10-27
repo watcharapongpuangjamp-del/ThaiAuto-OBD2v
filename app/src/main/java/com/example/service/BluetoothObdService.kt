@@ -417,6 +417,56 @@ class BluetoothObdService(private val context: Context) {
         }
     }
 
+    suspend fun fetchDtcCodes(): List<String> = withContext(Dispatchers.IO) {
+        val storedResp = sendRawCommandInternal("03")
+        val pendingResp = sendRawCommandInternal("07")
+        val dtcs = mutableSetOf<String>()
+        dtcs.addAll(parseDtcResponse(storedResp))
+        dtcs.addAll(parseDtcResponse(pendingResp))
+        return@withContext dtcs.toList()
+    }
+
+    fun parseDtcResponse(resp: String): List<String> {
+        val dtcs = mutableListOf<String>()
+        val clean = resp.replace("\r", " ").replace("\n", " ").replace(">", " ").trim()
+        val tokens = clean.split("\\s+".toRegex()).filter { it.length == 2 && it.toIntOrNull(16) != null }
+        
+        var i = 0
+        while (i < tokens.size) {
+            val token = tokens[i]
+            if (token == "43" || token == "47") {
+                i++
+                if (i < tokens.size && tokens[i].toIntOrNull(16) != null && tokens.size - i >= 2 && tokens[i].toInt(16) <= 6) {
+                    i++
+                }
+                while (i + 1 < tokens.size) {
+                    val b1 = tokens[i].toInt(16)
+                    val b2 = tokens[i + 1].toInt(16)
+                    i += 2
+                    if (b1 == 0 && b2 == 0) continue
+                    
+                    val prefixChar = when ((b1 and 0xC0) shr 6) {
+                        0 -> 'P'
+                        1 -> 'C'
+                        2 -> 'B'
+                        3 -> 'U'
+                        else -> 'P'
+                    }
+                    val digit2 = (b1 and 0x30) shr 4
+                    val digit3 = b1 and 0x0F
+                    val digit4 = (b2 and 0xF0) shr 4
+                    val digit5 = b2 and 0x0F
+                    
+                    val code = "$prefixChar$digit2${digit3.toString(16).uppercase()}${digit4.toString(16).uppercase()}${digit5.toString(16).uppercase()}"
+                    dtcs.add(code)
+                }
+                break
+            }
+            i++
+        }
+        return dtcs.distinct()
+    }
+
     suspend fun sendRawCommand(command: String): String = withContext(Dispatchers.IO) {
         sendRawCommandInternal(command)
     }

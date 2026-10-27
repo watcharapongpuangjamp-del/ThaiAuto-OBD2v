@@ -32,7 +32,54 @@ class BluetoothObdViewModel(application: Application) : AndroidViewModel(applica
     private val _telemetryData = MutableStateFlow(LiveSensorData.disconnected())
     val telemetryData: StateFlow<LiveSensorData> = _telemetryData.asStateFlow()
 
+    private val _dtcList = MutableStateFlow<List<com.example.data.model.DtcCode>>(emptyList())
+    val dtcList: StateFlow<List<com.example.data.model.DtcCode>> = _dtcList.asStateFlow()
+
+    private val _isScanningDtcs = MutableStateFlow(false)
+    val isScanningDtcs: StateFlow<Boolean> = _isScanningDtcs.asStateFlow()
+
     private var demoJob: Job? = null
+
+    fun scanDtcCodes() {
+        viewModelScope.launch {
+            _isScanningDtcs.value = true
+            if (_isDemoMode.value) {
+                delay(1200)
+                val demoCodes = listOf("P0171", "P0087", "P0401")
+                val resultList = demoCodes.mapNotNull { code ->
+                    com.example.data.repository.DtcDatabase.allCodes.find { it.code == code }
+                }
+                _dtcList.value = resultList
+            } else {
+                val codes = bluetoothService.fetchDtcCodes()
+                val resultList = if (codes.isNotEmpty()) {
+                    codes.map { code ->
+                        com.example.data.repository.DtcDatabase.allCodes.find { it.code == code }
+                            ?: com.example.data.model.DtcCode(
+                                code = code,
+                                category = com.example.data.model.DtcCategory.POWERTRAIN,
+                                enTitle = "Trouble Code $code",
+                                thTitle = "รหัสข้อผิดพลาด $code",
+                                enDescription = "OBD-II Diagnostic Trouble Code $code detected on CAN bus.",
+                                thDescription = "ตรวจพบรหัสวิเคราะห์ข้อผิดพลาด OBD-II $code ผ่านระบบ CAN bus",
+                                severity = com.example.data.model.DtcSeverity.WARNING,
+                                commonCausesTh = listOf("โปรดตรวจสอบระบบเซนเซอร์ที่เกี่ยวข้อง"),
+                                commonCausesEn = listOf("Inspect sensor circuit and connections"),
+                                symptomsTh = listOf("ไฟ Check Engine โชว์ที่หน้าปัด"),
+                                symptomsEn = listOf("Check Engine Light illuminated"),
+                                estimatedCostThb = "฿500 - ฿3,000",
+                                diyDifficulty = "ปานกลาง",
+                                affectedSystem = "Engine Control Unit (ECU)"
+                            )
+                    }
+                } else {
+                    emptyList()
+                }
+                _dtcList.value = resultList
+            }
+            _isScanningDtcs.value = false
+        }
+    }
 
     init {
         // Observe real BLE service telemetry
