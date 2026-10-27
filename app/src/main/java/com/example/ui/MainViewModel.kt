@@ -26,6 +26,7 @@ import com.example.data.model.ScanRecord
 import com.example.data.model.ThaiCarSpec
 import com.example.data.model.Vehicle
 import com.example.data.repository.AiMechanicRepository
+import com.example.data.repository.MaintenanceHistoryRepository
 import com.example.data.repository.DtcDatabase
 import com.example.data.repository.PredictiveMaintenanceEngine
 import com.example.data.repository.ThaiCarDatabase
@@ -69,6 +70,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val dtcDao = db.dtcDao()
     val systemLogger = SystemLoggerRepository(db.systemLoggerDao())
     private val aiRepository = AiMechanicRepository()
+    val maintenanceHistoryRepository = MaintenanceHistoryRepository(application)
     val emulatorService = Obd2EmulatorService(viewModelScope)
     val usbDriver = UsbObdDriver(application, viewModelScope)
     val voiceAlertService = VoiceAlertService(application)

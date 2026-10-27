@@ -1,8 +1,6 @@
 package com.example.ui.screens
 
-import com.example.R
 import android.app.Activity
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,18 +13,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -46,6 +41,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,22 +60,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialCancellationException
+import com.example.data.repository.AuthRepository
 import com.example.ui.theme.AutoCyan
-import com.example.ui.theme.AutoGreen
-import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-import com.google.firebase.Firebase
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.auth
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 
 @Composable
 fun SignInScreen(
@@ -88,6 +71,8 @@ fun SignInScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val authRepository = remember { AuthRepository(context) }
+
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -95,6 +80,20 @@ fun SignInScreen(
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var selectedAuthModeTab by remember { mutableIntStateOf(0) } // 0: Sign In, 1: Sign Up
+
+    // Attempt silent auto sign-in on launch
+    LaunchedEffect(Unit) {
+        if (authRepository.currentUser != null) {
+            onAuthSuccess()
+        } else {
+            coroutineScope.launch {
+                val success = authRepository.attemptAutoSignIn()
+                if (success) {
+                    onAuthSuccess()
+                }
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -249,19 +248,16 @@ fun SignInScreen(
                             isLoading = true
                             errorMessage = null
                             coroutineScope.launch {
-                                try {
-                                    if (selectedAuthModeTab == 0) {
-                                        Firebase.auth.signInWithEmailAndPassword(email.trim(), password).await()
-                                    } else {
-                                        Firebase.auth.createUserWithEmailAndPassword(email.trim(), password).await()
-                                    }
-                                    isLoading = false
-                                    onAuthSuccess()
-                                } catch (e: Exception) {
-                                    isLoading = false
-                                    Log.e("Auth", "Email auth failed", e)
-                                    errorMessage = e.localizedMessage ?: "การยืนยันตัวตนล้มเหลว"
+                                val result = if (selectedAuthModeTab == 0) {
+                                    authRepository.signInWithEmail(email, password)
+                                } else {
+                                    authRepository.signUpWithEmail(email, password)
                                 }
+                                isLoading = false
+                                result.fold(
+                                    onSuccess = { onAuthSuccess() },
+                                    onFailure = { e -> errorMessage = e.localizedMessage ?: "การยืนยันตัวตนล้มเหลว" }
+                                )
                             }
                         },
                         modifier = Modifier
@@ -304,23 +300,25 @@ fun SignInScreen(
                     // Google Sign In Button
                     Button(
                         onClick = {
+                            val activity = context as? Activity
+                            if (activity == null) {
+                                errorMessage = "Activity unavailable for Google Sign-In"
+                                return@Button
+                            }
                             isLoading = true
                             errorMessage = null
-                            performGoogleSignIn(
-                                context = context,
-                                coroutineScope = coroutineScope,
-                                onSuccess = {
-                                    isLoading = false
-                                    onAuthSuccess()
-                                },
-                                onError = { err ->
-                                    isLoading = false
-                                    errorMessage = err
-                                },
-                                onCancelled = {
-                                    isLoading = false
-                                }
-                            )
+                            coroutineScope.launch {
+                                val result = authRepository.signInWithGoogle(activity)
+                                isLoading = false
+                                result.fold(
+                                    onSuccess = { onAuthSuccess() },
+                                    onFailure = { e ->
+                                        if (e !is androidx.credentials.exceptions.GetCredentialCancellationException) {
+                                            errorMessage = e.localizedMessage ?: "Google Sign-In failed"
+                                        }
+                                    }
+                                )
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -358,49 +356,6 @@ fun SignInScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-private fun performGoogleSignIn(
-    context: android.content.Context,
-    coroutineScope: CoroutineScope,
-    onSuccess: () -> Unit,
-    onError: (String) -> Unit,
-    onCancelled: () -> Unit
-) {
-    val clientId = try {
-        context.getString(R.string.default_web_client_id)
-    } catch (e: Exception) {
-        ""
-    }
-    if (clientId.isEmpty()) {
-        onError("Google Sign-In configuration missing: default_web_client_id not found")
-        return
-    }
-
-    val credentialManager = CredentialManager.create(context)
-    val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
-    val request = GetCredentialRequest.Builder().addCredentialOption(signInOption).build()
-
-    coroutineScope.launch {
-        try {
-            val result = credentialManager.getCredential(context as Activity, request)
-            val credential = result.credential
-            if (credential is CustomCredential && credential.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
-                val authCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
-                Firebase.auth.signInWithCredential(authCredential).await()
-                onSuccess()
-            } else {
-                onError("Unexpected credential type received")
-            }
-        } catch (e: GetCredentialCancellationException) {
-            Log.w("Auth", "Google Sign-In cancelled or dismissed: ${e.message}", e)
-            onCancelled()
-        } catch (e: Exception) {
-            Log.e("Auth", "Google Sign-In failed", e)
-            onError(e.localizedMessage ?: "Sign in failed")
         }
     }
 }
