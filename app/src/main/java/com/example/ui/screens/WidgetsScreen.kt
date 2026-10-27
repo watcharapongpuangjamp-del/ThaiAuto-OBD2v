@@ -58,6 +58,7 @@ import com.example.ui.theme.AutoAmber
 import com.example.ui.theme.AutoCyan
 import com.example.ui.theme.AutoGreen
 import com.example.ui.theme.AutoRed
+import com.example.ui.theme.getGaugeFontFamily
 
 @Composable
 fun WidgetsScreen(viewModel: MainViewModel) {
@@ -65,6 +66,9 @@ fun WidgetsScreen(viewModel: MainViewModel) {
     val isTh = language == AppLanguage.TH
     val liveSensors by viewModel.liveSensors.collectAsState()
     val activeDtcs by viewModel.activeDtcs.collectAsState()
+
+    val uiCustomization by viewModel.uiCustomizationState.collectAsState()
+    val gaugeFont = getGaugeFontFamily(uiCustomization.gaugeFont)
 
     val wSpeedVisible by viewModel.widgetSpeedVisible.collectAsState()
     val wBatteryVisible by viewModel.widgetBatteryVisible.collectAsState()
@@ -162,8 +166,8 @@ fun WidgetsScreen(viewModel: MainViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(text = "${liveSensors.speedKmh.toInt()} km/h", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = AutoCyan)
-                        Text(text = "RPM: ${liveSensors.rpm.toInt()} RPM", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(text = "${liveSensors.speedKmh.toInt()} km/h", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontFamily = gaugeFont), color = AutoCyan)
+                        Text(text = "RPM: ${liveSensors.rpm.toInt()} RPM", style = MaterialTheme.typography.bodySmall.copy(fontFamily = gaugeFont), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Icon(imageVector = Icons.Default.Speed, contentDescription = null, tint = AutoCyan, modifier = Modifier.size(36.dp))
                 }

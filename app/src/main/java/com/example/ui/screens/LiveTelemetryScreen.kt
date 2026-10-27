@@ -70,6 +70,7 @@ import com.example.ui.theme.AutoAmber
 import com.example.ui.theme.AutoCyan
 import com.example.ui.theme.AutoGreen
 import com.example.ui.theme.AutoRed
+import com.example.ui.theme.getGaugeFontFamily
 
 enum class TelemetryCategory {
     ALL,
@@ -90,6 +91,9 @@ fun LiveTelemetryScreen(
     val sensors by viewModel.liveSensors.collectAsState()
     val currentMode by viewModel.drivingMode.collectAsState()
     val rpmHistory by viewModel.rpmHistory.collectAsState()
+
+    val uiCustomization by viewModel.uiCustomizationState.collectAsState()
+    val gaugeFont = getGaugeFontFamily(uiCustomization.gaugeFont)
 
     var selectedTelemetryCategory by remember { mutableStateOf(TelemetryCategory.ALL) }
 
@@ -363,8 +367,16 @@ fun LiveTelemetryScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SpeedometerGauge(speedKmh = sensors.speedKmh)
-                        TachometerGauge(rpm = sensors.rpm)
+                        SpeedometerGauge(
+                            speedKmh = sensors.speedKmh,
+                            fontFamily = gaugeFont,
+                            fontScale = uiCustomization.gaugeFontScale
+                        )
+                        TachometerGauge(
+                            rpm = sensors.rpm,
+                            fontFamily = gaugeFont,
+                            fontScale = uiCustomization.gaugeFontScale
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))

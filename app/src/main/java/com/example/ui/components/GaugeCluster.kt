@@ -42,6 +42,8 @@ import kotlin.math.sin
 fun SpeedometerGauge(
     speedKmh: Int,
     maxSpeed: Int = 220,
+    fontFamily: FontFamily = FontFamily.Monospace,
+    fontScale: Float = 1.0f,
     modifier: Modifier = Modifier
 ) {
     val animatedSpeed by animateFloatAsState(
@@ -118,8 +120,8 @@ fun SpeedometerGauge(
                 text = "$speedKmh",
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 36.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontSize = (36 * fontScale).sp,
+                    fontFamily = fontFamily
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -127,7 +129,8 @@ fun SpeedometerGauge(
                 text = "KM/H",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.2.sp
+                    letterSpacing = 1.2.sp,
+                    fontFamily = fontFamily
                 ),
                 color = AutoCyan
             )
@@ -139,6 +142,8 @@ fun SpeedometerGauge(
 fun TachometerGauge(
     rpm: Int,
     maxRpm: Int = 6000,
+    fontFamily: FontFamily = FontFamily.Monospace,
+    fontScale: Float = 1.0f,
     modifier: Modifier = Modifier
 ) {
     val animatedRpm by animateFloatAsState(
@@ -225,8 +230,8 @@ fun TachometerGauge(
                 text = "$rpm",
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 32.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontSize = (32 * fontScale).sp,
+                    fontFamily = fontFamily
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -234,7 +239,8 @@ fun TachometerGauge(
                 text = "RPM x1000",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 1.sp,
+                    fontFamily = fontFamily
                 ),
                 color = AutoGreen
             )

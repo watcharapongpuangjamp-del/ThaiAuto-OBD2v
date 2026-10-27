@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CloudDone
@@ -33,10 +34,13 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.UsbOff
 import com.example.ui.components.ObdConnectionDialog
 import com.example.ui.components.SettingsDialog
+import com.example.ui.components.UiCustomizationDialog
+import com.example.ui.theme.CyberThemeWrapper
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -76,6 +80,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LiveTelemetryScreen
 import com.example.ui.screens.MaintenanceScreen
 import com.example.ui.screens.PredictiveMaintenanceScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.ReportDialog
 import com.example.ui.screens.VehicleSpecsScreen
 import com.example.ui.screens.WidgetsScreen
@@ -125,15 +130,18 @@ class MainActivity : ComponentActivity() {
             }
 
             var isGuestMode by remember { mutableStateOf(false) }
+            val customizationState by mainViewModel.uiCustomizationState.collectAsState()
 
-            MyApplicationTheme(darkTheme = isDarkTheme) {
-                if (currentUser == null && !isGuestMode) {
-                    LoginScreen(
-                        onLoginSuccess = { currentUser = Firebase.auth.currentUser },
-                        onGuestContinue = { isGuestMode = true }
-                    )
-                } else {
-                    MainAppContent(viewModel = mainViewModel)
+            CyberThemeWrapper(customizationState = customizationState) {
+                MyApplicationTheme(darkTheme = isDarkTheme) {
+                    if (currentUser == null && !isGuestMode) {
+                        LoginScreen(
+                            onLoginSuccess = { currentUser = Firebase.auth.currentUser },
+                            onGuestContinue = { isGuestMode = true }
+                        )
+                    } else {
+                        MainAppContent(viewModel = mainViewModel)
+                    }
                 }
             }
         }
@@ -178,6 +186,7 @@ fun MainAppContent(viewModel: MainViewModel) {
     var showReportDialog by remember { mutableStateOf(false) }
     var showConnectionDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showUiCustomizationDialog by remember { mutableStateOf(false) }
     val showHudDialog by viewModel.showHudDialog.collectAsState()
     val showBaselineDialog by viewModel.showBaselineDialog.collectAsState()
     val showSnapshotDialog by viewModel.showSnapshotDialog.collectAsState()
@@ -258,6 +267,13 @@ fun MainAppContent(viewModel: MainViewModel) {
         )
     }
 
+    if (showUiCustomizationDialog) {
+        UiCustomizationDialog(
+            viewModel = viewModel,
+            onDismiss = { showUiCustomizationDialog = false }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -293,6 +309,30 @@ fun MainAppContent(viewModel: MainViewModel) {
                     }
                 },
                 actions = {
+                    // Profile Button
+                    IconButton(
+                        onClick = { viewModel.setTab(8) },
+                        modifier = Modifier.testTag("btn_open_profile")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Profile",
+                            tint = AutoGreen
+                        )
+                    }
+
+                    // UI Customization Theme Palette Button
+                    IconButton(
+                        onClick = { showUiCustomizationDialog = true },
+                        modifier = Modifier.testTag("btn_open_ui_customization")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = "Customize UI",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     // Settings Button
                     IconButton(
                         onClick = { showSettingsDialog = true },
@@ -492,6 +532,18 @@ fun MainAppContent(viewModel: MainViewModel) {
                         indicatorColor = AutoGreen.copy(alpha = 0.2f)
                     )
                 )
+
+                NavigationBarItem(
+                    selected = currentTab == 8,
+                    onClick = { viewModel.setTab(8) },
+                    icon = { Icon(Icons.Default.AccountCircle, contentDescription = "Profile") },
+                    label = { Text(if (isTh) "โปรไฟล์" else "Profile", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AutoCyan,
+                        selectedTextColor = AutoCyan,
+                        indicatorColor = AutoCyan.copy(alpha = 0.2f)
+                    )
+                )
             }
         }
     ) { innerPadding ->
@@ -508,6 +560,7 @@ fun MainAppContent(viewModel: MainViewModel) {
                 5 -> MaintenanceScreen(viewModel = viewModel)
                 6 -> AboutScreen(viewModel = viewModel)
                 7 -> WidgetsScreen(viewModel = viewModel)
+                8 -> ProfileScreen(viewModel = viewModel)
                 else -> HomeScreen(viewModel = viewModel)
             }
         }

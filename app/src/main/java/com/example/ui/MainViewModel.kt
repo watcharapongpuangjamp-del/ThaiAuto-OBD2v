@@ -25,6 +25,9 @@ import com.example.data.model.PredictiveVehicleHealthSummary
 import com.example.data.model.ScanRecord
 import com.example.data.model.ThaiCarSpec
 import com.example.data.model.Vehicle
+import com.example.data.model.UiCustomizationState
+import com.example.data.model.NeonAccentPreset
+import com.example.data.model.GaugeFontPreset
 import com.example.data.repository.AiMechanicRepository
 import com.example.data.repository.MaintenanceHistoryRepository
 import com.example.data.repository.DtcDatabase
@@ -119,6 +122,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setThemeMode(mode: com.example.data.model.AppThemeMode) {
         _themeMode.value = mode
+    }
+
+    // Cyberpunk UI Customization State
+    private val _uiCustomizationState = MutableStateFlow(UiCustomizationState())
+    val uiCustomizationState: StateFlow<UiCustomizationState> = _uiCustomizationState.asStateFlow()
+
+    fun updateNeonPreset(preset: NeonAccentPreset) {
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(preset = preset)
+    }
+
+    fun updateCustomHexColors(primaryHex: String, secondaryHex: String) {
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(
+            customPrimaryColorHex = primaryHex,
+            customSecondaryColorHex = secondaryHex,
+            preset = NeonAccentPreset.CUSTOM_RGB
+        )
+    }
+
+    fun updateGaugeFont(fontPreset: GaugeFontPreset) {
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(gaugeFont = fontPreset)
+    }
+
+    fun updateGaugeFontScale(scale: Float) {
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(gaugeFontScale = scale)
+    }
+
+    fun updateGlowIntensity(intensity: Float) {
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(glowIntensity = intensity)
+    }
+
+    fun reorderWidgetGrid(newOrder: List<String>) {
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(widgetGridOrder = newOrder)
+    }
+
+    fun toggleWidgetVisibility(widgetId: String) {
+        val current = _uiCustomizationState.value.hiddenWidgetIds.toMutableSet()
+        if (current.contains(widgetId)) {
+            current.remove(widgetId)
+        } else {
+            current.add(widgetId)
+        }
+        _uiCustomizationState.value = _uiCustomizationState.value.copy(hiddenWidgetIds = current)
     }
 
     // Google Drive Cloud Sync State
