@@ -176,7 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGoogleDriveSyncing = MutableStateFlow(false)
     val isGoogleDriveSyncing: StateFlow<Boolean> = _isGoogleDriveSyncing.asStateFlow()
 
-    private val _lastCloudBackupTime = MutableStateFlow("ยังไม่มีข้อมูล" )
+    private val _lastCloudBackupTime = MutableStateFlow("—")
     val lastCloudBackupTime: StateFlow<String> = _lastCloudBackupTime.asStateFlow()
 
     // Measurement Unit System State
