@@ -6,6 +6,7 @@
 
 - [รายงานตรวจสอบ Main Branch](audit/MAIN_BRANCH_AUDIT_2026-10-29.md) — ขอบเขตตรวจสอบ ข้อค้นพบ ความเสี่ยง และหลักฐานอ้างอิง
 - [แผนแก้ไขและ Checklist](audit/REMEDIATION_PLAN.md) — งานเรียงตามความสำคัญและเกณฑ์ตรวจรับ
+- [รายงานตรวจ PR และ CI รอบล่าสุด](audit/PR_CI_RECHECK_2026-10-29.md) — สถานะ PR #3–#7, ผล workflow ที่ตรวจได้ และความเสี่ยง Cloud Sync / data loss ที่ต้องปิดก่อน release
 
 ## ขอบเขต
 
