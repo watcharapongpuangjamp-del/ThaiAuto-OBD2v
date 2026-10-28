@@ -27,7 +27,8 @@ interface GeminiApiService {
 
         fun create(): GeminiApiService {
             val logging = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BASIC
+                // Requests include the Gemini API key in the URL query; never log request lines/URLs.
+                level = HttpLoggingInterceptor.Level.NONE
             }
 
             val okHttpClient = OkHttpClient.Builder()
