@@ -566,9 +566,13 @@ fun SettingsDialog(
                                 } else {
                                     Button(
                                         onClick = {
-                                            viewModel.connectGoogleDrive("watcharapong.puangjamp@gmail.com")
-                                            isSuccessMessage = true
-                                            statusMessage = if (isTh) "เชื่อมต่อ Google Drive สำเร็จ" else "Google Drive connected successfully"
+                                            viewModel.connectGoogleDrive("")
+                                            isSuccessMessage = false
+                                            statusMessage = if (isTh) {
+                                                "ยังเชื่อมต่อไม่ได้: ยังไม่ได้ติดตั้ง Google Sign-In และบริการ Google Drive จริง"
+                                            } else {
+                                                "Connection unavailable: Google Sign-In and a real Google Drive service are not implemented"
+                                            }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(10.dp),
