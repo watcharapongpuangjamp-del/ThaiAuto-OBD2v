@@ -299,81 +299,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _specialFunctionLog = MutableStateFlow<List<String>>(emptyList())
     val specialFunctionLog: StateFlow<List<String>> = _specialFunctionLog.asStateFlow()
 
+    /**
+     * Active actuator control is intentionally disabled until a vehicle-specific
+     * transport can validate ECU support, transmit the selected command, and
+     * confirm the real ECU response. Never synthesize an ACK or success result.
+     */
     fun runActiveTest(testNameTh: String, testNameEn: String, commands: List<String>) {
         if (_isExecutingActiveTest.value) return
-        viewModelScope.launch {
-            _isExecutingActiveTest.value = true
-            val logs = mutableListOf<String>()
-            val isTh = _language.value == AppLanguage.TH
-            val name = if (isTh) testNameTh else testNameEn
-            logs.add(if (isTh) "▶ เริ่มต้นการทดสอบสั่งการอุปกรณ์ (Active Test): $name" else "▶ Starting Active Test: $name")
-            _activeTestLog.value = logs.toList()
-
-            for (cmd in commands) {
-                delay(800)
-                if (_connectionType.value == ObdConnectionType.USB_OTG && _operationMode.value == AppOperationMode.REAL_HARDWARE) {
-                    usbDriver.sendCustomCommand(cmd)
-                }
-                logs.add("↳ $cmd -> OK (ACK 0x41)")
-                _activeTestLog.value = logs.toList()
-            }
-            delay(500)
-            logs.add(if (isTh) "✔ การทดสอบ $name สำเร็จ สั่งคืนค่าควบคุมปกติแก่ ECU" else "✔ Test $name Completed. Control returned to ECU.")
-            _activeTestLog.value = logs.toList()
-            _isExecutingActiveTest.value = false
+        val isTh = _language.value == AppLanguage.TH
+        val name = if (isTh) testNameTh else testNameEn
+        val message = if (isTh) {
+            "ยังไม่ดำเนินการ: ยังไม่มีการตรวจสอบคำสั่งและการตอบกลับจาก ECU จริงสำหรับรถรุ่นนี้"
+        } else {
+            "Not executed: vehicle-specific ECU command support and real response validation are not implemented."
         }
+        _activeTestLog.value = listOf(
+            if (isTh) "⚠ Active Test ถูกปิดเพื่อความปลอดภัย: $name" else "⚠ Active Test blocked for safety: $name",
+            message
+        )
+        _isExecutingActiveTest.value = false
     }
 
+    /**
+     * Special functions may write ECU configuration or perform adaptation.
+     * Keep them blocked until OEM-specific security access, compatibility checks,
+     * response validation, and recovery behavior are implemented.
+     */
     fun runComponentRegistration(functionNameTh: String, functionNameEn: String, parameterData: String) {
-        if (_isExecutingSpecialFunction.value) return
-        viewModelScope.launch {
-            _isExecutingSpecialFunction.value = true
-            val logs = mutableListOf<String>()
-            val isTh = _language.value == AppLanguage.TH
-            val name = if (isTh) functionNameTh else functionNameEn
-            logs.add(if (isTh) "▶ เริ่มกระบวนการลงทะเบียนและ Calibration: $name" else "▶ Starting Registration & Adaptation: $name")
-            if (parameterData.isNotBlank()) {
-                logs.add(if (isTh) "  ข้อมูลพารามิเตอร์: $parameterData" else "  Parameter payload: $parameterData")
-            }
-            _specialFunctionLog.value = logs.toList()
-
-            delay(700)
-            logs.add(if (isTh) "↳ 1. เข้าสู่โหมดวิชาการพิเศษ UDS Security Access (0x27 Seed/Key Exchange)..." else "↳ 1. UDS Security Access (0x27 Seed/Key Exchange)...")
-            _specialFunctionLog.value = logs.toList()
-
-            delay(900)
-            logs.add(if (isTh) "↳ 2. เขียนพารามิเตอร์ใหม่เข้าตาราง Flash EEPROM กล่อง ECU..." else "↳ 2. Writing new parameter payload into ECU EEPROM...")
-            _specialFunctionLog.value = logs.toList()
-
-            delay(800)
-            logs.add(if (isTh) "↳ 3. สั่งคำสั่ง Reset Adaptations & Re-learn Initial Values..." else "↳ 3. Executing Adaptation Reset & Re-learn Routine...")
-            _specialFunctionLog.value = logs.toList()
-
-            delay(600)
-            logs.add(if (isTh) "✔ ลงทะเบียนอุปกรณ์ $name และบันทึกค่าในกล่อง ECU สำเร็จ" else "✔ Component $name successfully registered & adapted in ECU.")
-            _specialFunctionLog.value = logs.toList()
-            _isExecutingSpecialFunction.value = false
-
-            val currentVeh = selectedVehicle.value
-            if (currentVeh != null) {
-                val now = System.currentTimeMillis()
-                maintenanceDao.insertLog(
-                    MaintenanceLog(
-                        vehicleId = currentVeh.id,
-                        serviceTypeTh = "ลงทะเบียน/Calibration: $functionNameTh",
-                        serviceTypeEn = "Special Function: $functionNameEn",
-                        mileageAtServiceKm = currentVeh.currentMileageKm,
-                        nextServiceMileageKm = currentVeh.currentMileageKm + 10000,
-                        serviceDate = now,
-                        nextServiceDate = now + (180L * 24 * 3600 * 1000),
-                        costThb = 0.0,
-                        garageNameTh = "AI OBD System Diagnostic Tool",
-                        notes = "Completed $name with parameters: $parameterData",
-                        isCompleted = true
-                    )
-                )
-            }
+        val isTh = _language.value == AppLanguage.TH
+        val name = if (isTh) functionNameTh else functionNameEn
+        val message = if (isTh) {
+            "ยังไม่ดำเนินการ: ฟังก์ชันลงทะเบียน/Calibration ต้องมีขั้นตอน OEM และการยืนยันจาก ECU จริง"
+        } else {
+            "Not executed: registration/calibration requires OEM-specific procedures and confirmed ECU responses."
         }
+        _specialFunctionLog.value = listOf(
+            if (isTh) "⚠ ปิดฟังก์ชันเพื่อความปลอดภัย: $name" else "⚠ Function blocked for safety: $name",
+            message
+        )
+        _isExecutingSpecialFunction.value = false
     }
 
     fun clearActiveTestLog() {
