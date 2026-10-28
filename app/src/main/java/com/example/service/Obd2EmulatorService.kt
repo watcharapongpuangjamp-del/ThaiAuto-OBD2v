@@ -24,13 +24,13 @@ enum class DrivingMode {
 class Obd2EmulatorService(
     private val scope: CoroutineScope
 ) {
-    private val _sensorData = MutableStateFlow(LiveSensorData())
+    private val _sensorData = MutableStateFlow(LiveSensorData.disconnected())
     val sensorData: StateFlow<LiveSensorData> = _sensorData.asStateFlow()
 
     private val _currentDrivingMode = MutableStateFlow(DrivingMode.CRUISE)
     val currentDrivingMode: StateFlow<DrivingMode> = _currentDrivingMode.asStateFlow()
 
-    private val _freezeFrame = MutableStateFlow<FreezeFrameData?>(FreezeFrameData())
+    private val _freezeFrame = MutableStateFlow<FreezeFrameData?>(null)
     val freezeFrame: StateFlow<FreezeFrameData?> = _freezeFrame.asStateFlow()
 
     private var telemetryJob: Job? = null
