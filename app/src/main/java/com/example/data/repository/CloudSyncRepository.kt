@@ -51,6 +51,7 @@ class CloudSyncRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            throw e
         }
     }
 
@@ -75,6 +76,7 @@ class CloudSyncRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            throw e
         }
     }
 
@@ -102,6 +104,7 @@ class CloudSyncRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            throw e
         }
     }
 
@@ -128,6 +131,7 @@ class CloudSyncRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            throw e
         }
     }
 
@@ -158,6 +162,7 @@ class CloudSyncRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            throw e
         }
     }
 }
