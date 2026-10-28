@@ -502,90 +502,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Real-hardware mode must start without fictitious vehicles or service history.
+     * Demo fixtures should be loaded only through an explicit, clearly labeled
+     * simulator/demo action; never seed them into a user's production database.
+     */
     private fun initializeSampleData() {
         viewModelScope.launch(Dispatchers.IO) {
-            val count = vehicleDao.getVehicleCount()
-            if (count == 0) {
-                val v1 = Vehicle(
-                    make = "Toyota",
-                    model = "Hilux Revo 2.4 GD Rocco",
-                    year = 2021,
-                    engine = "2GD-FTV 2.4L VN Turbo",
-                    licensePlate = "8กบ 9421",
-                    provinceTh = "กรุงเทพมหานคร",
-                    vin = "MR0BA3CD2M0123456",
-                    currentMileageKm = 68500,
-                    fuelType = "ดีเซล (Diesel B7)",
-                    isSelected = true,
-                    healthScore = 88
-                )
-                val v2 = Vehicle(
-                    make = "Honda",
-                    model = "Civic RS 1.5 Turbo (FE)",
-                    year = 2022,
-                    engine = "L15BG 1.5L VTEC Turbo",
-                    licensePlate = "3ขค 5678",
-                    provinceTh = "กรุงเทพมหานคร",
-                    vin = "MHRFE1670NP008899",
-                    currentMileageKm = 34200,
-                    fuelType = "แก๊สโซฮอล์ 95 (Gasohol 95)",
-                    isSelected = false,
-                    healthScore = 96
-                )
-                val v3 = Vehicle(
-                    make = "Isuzu",
-                    model = "D-Max Hi-Lander 1.9 Ddi",
-                    year = 2020,
-                    engine = "RZ4E-TC 1.9L Blue Power",
-                    licensePlate = "กฉ 4321",
-                    provinceTh = "ชลบุรี",
-                    vin = "MP1TC41G2L1054321",
-                    currentMileageKm = 98000,
-                    fuelType = "ดีเซล (Diesel B10)",
-                    isSelected = false,
-                    healthScore = 91
-                )
-
-                val v1Id = vehicleDao.insertVehicle(v1)
-                vehicleDao.insertVehicle(v2)
-                vehicleDao.insertVehicle(v3)
-
-                // Add sample maintenance logs
-                maintenanceDao.insertLog(
-                    MaintenanceLog(
-                        vehicleId = v1Id,
-                        serviceTypeTh = "เปลี่ยนถ่ายน้ำมันเครื่องสังเคราะห์ 5W-30 + ไส้กรอง",
-                        serviceTypeEn = "Engine Oil 5W-30 & Filter Replacement",
-                        mileageAtServiceKm = 60000,
-                        nextServiceMileageKm = 70000,
-                        serviceDate = System.currentTimeMillis() - 90L * 24 * 3600 * 1000,
-                        nextServiceDate = System.currentTimeMillis() + 30L * 24 * 3600 * 1000,
-                        costThb = 2450.0,
-                        garageNameTh = "ศูนย์บริการ Toyota K.Motors",
-                        notes = "ตรวจเช็คระดับน้ำมันเบรกและผ้าเบรกปกติ"
-                    )
-                )
-
-                maintenanceDao.insertLog(
-                    MaintenanceLog(
-                        vehicleId = v1Id,
-                        serviceTypeTh = "เปลี่ยนกรองโซล่าดักน้ำ + กรองอากาศ",
-                        serviceTypeEn = "Fuel & Air Filter Replacement",
-                        mileageAtServiceKm = 50000,
-                        nextServiceMileageKm = 70000,
-                        serviceDate = System.currentTimeMillis() - 180L * 24 * 3600 * 1000,
-                        nextServiceDate = System.currentTimeMillis() + 15L * 24 * 3600 * 1000,
-                        costThb = 1180.0,
-                        garageNameTh = "อู่ช่างเล็ก คอมมอนเรล",
-                        notes = "ล้างแอร์โฟร์เซนเซอร์"
-                    )
-                )
-
-                // Real Hardware mode starts clean with 0 faults until physically scanned
-                _activeDtcs.value = emptyList()
-                _isMilOn.value = false
-            }
-
             refreshMaintenanceLogs()
             recalculatePredictiveHealth()
         }
