@@ -200,7 +200,11 @@ class ObdDiagnosticEngine {
             cleaned.contains("?")
         ) return false
         if (cleaned.contains("NO DATA")) return true
-        return cleaned.split(Regex("\\s+")).any { it == positiveService }
+        val tokens = cleaned.split(Regex("\\s+"))
+        val serviceIndex = tokens.indexOf(positiveService)
+        if (serviceIndex < 0 || tokens.size < serviceIndex + 3) return false
+        return tokens[serviceIndex + 1].matches(Regex("[0-9A-F]{2}")) &&
+            tokens[serviceIndex + 2].matches(Regex("[0-9A-F]{2}"))
     }
 
     private fun failedDtcRead(
