@@ -21,8 +21,24 @@ object PredictiveMaintenanceEngine {
         activeDtcs: List<DtcCode>,
         drivingMode: DrivingMode
     ): PredictiveVehicleHealthSummary {
-        val currentMileage = vehicle?.currentMileageKm ?: 68500
-        val vehicleYear = vehicle?.year ?: 2021
+        val analysisTimestamp = System.currentTimeMillis()
+        if (vehicle == null || !sensors.isConnected) {
+            return PredictiveVehicleHealthSummary(
+                overallHealthScore = 0,
+                riskCategoryTh = "ข้อมูลไม่เพียงพอ",
+                riskCategoryEn = "Insufficient data",
+                activeAlertCount = 0,
+                imminentFailureCount = 0,
+                components = emptyList(),
+                lastAnalysisTimestamp = analysisTimestamp,
+                mileageAnalyzedKm = vehicle?.currentMileageKm ?: 0,
+                drivingStressFactorTh = "ยังไม่มีข้อมูลรถและเซนเซอร์ที่ยืนยันได้",
+                drivingStressFactorEn = "No verified vehicle and sensor data available",
+                dataAvailable = false
+            )
+        }
+        val currentMileage = vehicle.currentMileageKm
+        val vehicleYear = vehicle.year
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val vehicleAgeYears = (currentYear - vehicleYear).coerceAtLeast(1)
 
