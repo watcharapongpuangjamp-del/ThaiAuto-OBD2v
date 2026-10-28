@@ -167,16 +167,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Google Drive Cloud Sync State
-    private val _googleDriveConnected = MutableStateFlow(true)
+    private val _googleDriveConnected = MutableStateFlow(false)
     val googleDriveConnected: StateFlow<Boolean> = _googleDriveConnected.asStateFlow()
 
-    private val _googleDriveAccountEmail = MutableStateFlow("watcharapong.puangjamp@gmail.com")
+    private val _googleDriveAccountEmail = MutableStateFlow("")
     val googleDriveAccountEmail: StateFlow<String> = _googleDriveAccountEmail.asStateFlow()
 
     private val _isGoogleDriveSyncing = MutableStateFlow(false)
     val isGoogleDriveSyncing: StateFlow<Boolean> = _isGoogleDriveSyncing.asStateFlow()
 
-    private val _lastCloudBackupTime = MutableStateFlow("2026-08-15 14:33:55 (Auto-Synced)")
+    private val _lastCloudBackupTime = MutableStateFlow("ยังไม่มีข้อมูล" )
     val lastCloudBackupTime: StateFlow<String> = _lastCloudBackupTime.asStateFlow()
 
     // Measurement Unit System State
@@ -499,10 +499,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isCloudSyncing = MutableStateFlow(false)
     val isCloudSyncing: StateFlow<Boolean> = _isCloudSyncing.asStateFlow()
 
-    private val _lastCloudSyncTimestamp = MutableStateFlow<Long>(System.currentTimeMillis() - 1000 * 60 * 15)
+    private val _lastCloudSyncTimestamp = MutableStateFlow<Long>(0L)
     val lastCloudSyncTimestamp: StateFlow<Long> = _lastCloudSyncTimestamp.asStateFlow()
 
-    private val _cloudSyncStatus = MutableStateFlow("Cloud Vault: Secure & Synchronized (AES-256 Encrypted)")
+    private val _cloudSyncStatus = MutableStateFlow("Cloud Sync unavailable: no remote service connected")
     val cloudSyncStatus: StateFlow<String> = _cloudSyncStatus.asStateFlow()
 
     // Notification Log History State for Dashboard Notification Center
@@ -510,7 +510,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         listOf(
             (System.currentTimeMillis() - 1000 * 60 * 45) to "🔔 Scheduled Service: Engine Oil & Fuel Filter due at 70,000 km",
             (System.currentTimeMillis() - 1000 * 60 * 15) to "⚠️ Diagnostic Finding: P0171 Fuel Trim System Lean detected",
-            (System.currentTimeMillis() - 1000 * 60 * 5) to "🛡️ Cloud Database: All vehicle records backed up securely"
         )
     )
     val recentNotifications: StateFlow<List<Pair<Long, String>>> = _recentNotifications.asStateFlow()
@@ -1322,9 +1321,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         usbDriver.clearTerminalLogs()
     }
 
+    // Google Drive integration is not implemented yet; fail closed rather than simulating success.
     fun connectGoogleDrive(email: String) {
-        _googleDriveConnected.value = true
-        _googleDriveAccountEmail.value = email
+        _googleDriveConnected.value = false
+        _googleDriveAccountEmail.value = ""
     }
 
     fun disconnectGoogleDrive() {
@@ -1333,27 +1333,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun backupToGoogleDrive(onComplete: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            _isGoogleDriveSyncing.value = true
-            delay(1500)
-            _isGoogleDriveSyncing.value = false
-            val timeStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
-            _lastCloudBackupTime.value = timeStr
-            val isTh = _language.value == AppLanguage.TH
-            val msg = if (isTh) "สำรองข้อมูลรถยนต์และประวัติ DTC ไปยัง Google Drive สำเร็จ ($timeStr)" else "Backup uploaded to Google Drive successfully ($timeStr)"
-            onComplete(true, msg)
+        _isGoogleDriveSyncing.value = false
+        val msg = if (_language.value == AppLanguage.TH) {
+            "สำรองข้อมูลไม่ได้: ยังไม่ได้เชื่อมต่อบริการ Google Drive จริง"
+        } else {
+            "Backup unavailable: a real Google Drive service is not connected"
         }
+        onComplete(false, msg)
     }
 
     fun restoreFromGoogleDrive(onComplete: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            _isGoogleDriveSyncing.value = true
-            delay(1500)
-            _isGoogleDriveSyncing.value = false
-            val isTh = _language.value == AppLanguage.TH
-            val msg = if (isTh) "กู้คืนข้อมูลจาก Google Drive สำเร็จ" else "Data restored from Google Drive successfully"
-            onComplete(true, msg)
+        _isGoogleDriveSyncing.value = false
+        val msg = if (_language.value == AppLanguage.TH) {
+            "กู้คืนข้อมูลไม่ได้: ยังไม่ได้เชื่อมต่อบริการ Google Drive จริง"
+        } else {
+            "Restore unavailable: a real Google Drive service is not connected"
         }
+        onComplete(false, msg)
     }
 
     fun toggleWidgetSpeed() { _widgetSpeedVisible.value = !_widgetSpeedVisible.value }
