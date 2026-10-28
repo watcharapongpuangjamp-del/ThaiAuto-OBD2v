@@ -204,7 +204,7 @@ fun HomeScreen(
 
                         // Health Score Badge
                         val score = predictiveHealth.overallHealthScore
-                        val scoreColor = if (score > 85) AutoGreen else if (score > 65) AutoAmber else AutoRed
+                        val scoreColor = if (!predictiveHealth.dataAvailable) MaterialTheme.colorScheme.outline else if (score > 85) AutoGreen else if (score > 65) AutoAmber else AutoRed
                         Box(
                             modifier = Modifier
                                 .background(scoreColor.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
@@ -214,7 +214,7 @@ fun HomeScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "$score%",
+                                    text = if (predictiveHealth.dataAvailable) "$score%" else "—",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace
