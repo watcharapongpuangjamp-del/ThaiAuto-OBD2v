@@ -470,19 +470,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val cloudSyncStatus: StateFlow<String> = _cloudSyncStatus.asStateFlow()
 
     // Notification Log History State for Dashboard Notification Center
-    private val _recentNotifications = MutableStateFlow<List<Pair<Long, String>>>(
-        listOf(
-            (System.currentTimeMillis() - 1000 * 60 * 45) to "🔔 Scheduled Service: Engine Oil & Fuel Filter due at 70,000 km",
-            (System.currentTimeMillis() - 1000 * 60 * 15) to "⚠️ Diagnostic Finding: P0171 Fuel Trim System Lean detected",
-        )
-    )
+    private val _recentNotifications = MutableStateFlow<List<Pair<Long, String>>>(emptyList())
     val recentNotifications: StateFlow<List<Pair<Long, String>>> = _recentNotifications.asStateFlow()
 
     // Telemetry Graph History Points (for live charts)
-    private val _rpmHistory = MutableStateFlow<List<Int>>(listOf(800, 1200, 1800, 2100, 1850))
+    private val _rpmHistory = MutableStateFlow<List<Int>>(emptyList())
     val rpmHistory: StateFlow<List<Int>> = _rpmHistory.asStateFlow()
 
-    private val _speedHistory = MutableStateFlow<List<Int>>(listOf(0, 30, 60, 80, 85))
+    private val _speedHistory = MutableStateFlow<List<Int>>(emptyList())
     val speedHistory: StateFlow<List<Int>> = _speedHistory.asStateFlow()
 
     init {
