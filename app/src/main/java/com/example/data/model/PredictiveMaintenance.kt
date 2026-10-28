@@ -44,5 +44,7 @@ data class PredictiveVehicleHealthSummary(
     val lastAnalysisTimestamp: Long,
     val mileageAnalyzedKm: Int,
     val drivingStressFactorTh: String,
-    val drivingStressFactorEn: String
+    val drivingStressFactorEn: String,
+    /** False when vehicle selection or verified telemetry is unavailable. */
+    val dataAvailable: Boolean = true
 )
