@@ -750,50 +750,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun triggerServiceNotificationReminder() = triggerMaintenanceNotification()
 
     fun triggerMaintenanceNotification() {
+        val vehicle = selectedVehicle.value ?: return
         val context = getApplication<Application>()
         val isTh = _language.value == AppLanguage.TH
-        val vehicle = selectedVehicle.value
-        val carName = vehicle?.let { "${it.make} ${it.model}" } ?: "Toyota Hilux Revo"
-        val title = if (isTh) "🔔 กำหนดเช็คระยะ: $carName" else "🔔 Scheduled Service Reminder: $carName"
+        val carName = "${vehicle.make} ${vehicle.model}"
+        val title = if (isTh) "🔔 ตรวจสอบกำหนดบำรุงรักษา: $carName" else "🔔 Review Maintenance Schedule: $carName"
         val msg = if (isTh) {
-            "ถึงกำหนดเปลี่ยนถ่ายน้ำมันเครื่องสังเคราะห์ & ไส้กรองโซล่าแล้ว (เลขไมล์ ${vehicle?.currentMileageKm ?: 68500} กม.)"
+            "โปรดตรวจสอบประวัติและกำหนดบำรุงรักษาที่บันทึกไว้ในแอป ระบบยังไม่ได้ยืนยันว่าถึงกำหนดเข้ารับบริการ"
         } else {
-            "Engine synthetic oil & fuel filter service is due at ${vehicle?.currentMileageKm ?: 68500} km."
+            "Review the maintenance history and schedule recorded in the app. Service due status has not been verified."
         }
         NotificationHelper.sendScheduledMaintenanceNotification(context, title, msg, notificationId = 1001)
-
-        val logEntry = (System.currentTimeMillis()) to "$title - $msg"
-        _recentNotifications.value = listOf(logEntry) + _recentNotifications.value
+        _recentNotifications.value = listOf((System.currentTimeMillis()) to "$title - $msg") + _recentNotifications.value
     }
 
     fun triggerCriticalAlertNotification(customMessage: String? = null) {
+        val msg = customMessage?.takeIf { it.isNotBlank() } ?: return
         val context = getApplication<Application>()
         val isTh = _language.value == AppLanguage.TH
-        val title = if (isTh) "🚨 แจ้งเตือนวิกฤต: ตรวจพบความผิดปกติในระบบ" else "🚨 Critical Alert: Vehicle Telemetry Hazard"
-        val msg = customMessage ?: if (isTh) {
-            "ตรวจพบรหัส P0087 (แรงดันรางคอมมอนเรลตก) และอุณหภูมิน้ำหล่อเย็นสูงเกินเกณฑ์ปกติ กรุณาจอดพักหรือตรวจเช็คทันที"
-        } else {
-            "Detected P0087 (Fuel Rail Pressure Low) & high coolant temp. Pull over safely and inspect."
-        }
+        val title = if (isTh) "🚨 แจ้งเตือนวิกฤตจากข้อมูลที่ตรวจพบ" else "🚨 Critical Alert From Observed Data"
         NotificationHelper.sendCriticalAlertNotification(context, title, msg, notificationId = 1002)
-
-        val logEntry = (System.currentTimeMillis()) to "$title - $msg"
-        _recentNotifications.value = listOf(logEntry) + _recentNotifications.value
+        _recentNotifications.value = listOf((System.currentTimeMillis()) to "$title - $msg") + _recentNotifications.value
     }
 
     fun triggerDiagnosticFindingsNotification(customMessage: String? = null) {
+        val msg = customMessage?.takeIf { it.isNotBlank() } ?: return
         val context = getApplication<Application>()
         val isTh = _language.value == AppLanguage.TH
-        val title = if (isTh) "🔍 รายงานผลการสแกนระบบ OBD-II" else "🔍 New Diagnostic Scan Findings"
-        val msg = customMessage ?: if (isTh) {
-            "สแกนโมดูลเครื่องยนต์และระบบส่งกำลังเสร็จสิ้น ตรวจพบรหัสข้อผิดพลาด 2 รายการ พร้อมบันทึก Freeze Frame แล้ว"
-        } else {
-            "Powertrain & Engine scan complete. 2 DTC faults identified with Freeze Frame snapshots."
-        }
+        val title = if (isTh) "🔍 ผลการตรวจวินิจฉัย" else "🔍 Diagnostic Findings"
         NotificationHelper.sendDiagnosticFindingNotification(context, title, msg, notificationId = 1003)
-
-        val logEntry = (System.currentTimeMillis()) to "$title - $msg"
-        _recentNotifications.value = listOf(logEntry) + _recentNotifications.value
+        _recentNotifications.value = listOf((System.currentTimeMillis()) to "$title - $msg") + _recentNotifications.value
     }
 
     // Cloud Database Synchronization & Backup
@@ -1018,6 +1004,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Clear Fault Codes (Mode 04 / UDS 0x14 ECU Reset) for specific system or all
     fun clearDtcFaultCodes(system: DiagnosticSystem = DiagnosticSystem.ALL) {
+        if (_operationMode.value == AppOperationMode.REAL_HARDWARE) {
+            _diagnosticReport.value = if (_language.value == AppLanguage.TH) {
+                "ยังไม่ได้ลบรหัสจาก ECU: ต้องส่งคำสั่งล้าง DTC ไปยังกล่องควบคุมและยืนยันผลตอบกลับจริงก่อน ระบบจึงจะเปลี่ยนสถานะรหัสขัดข้องได้"
+            } else {
+                "DTCs were not cleared: the ECU clear command and its real response must be verified before changing fault status."
+            }
+            return
+        }
+
         viewModelScope.launch {
             if (system == DiagnosticSystem.ALL) {
                 _activeDtcs.value = emptyList()
@@ -1028,11 +1023,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isMilOn.value = _activeDtcs.value.isNotEmpty()
             _diagnosticReport.value = null
             emulatorService.clearDtcAndResetEcu()
-
-            val vehicle = selectedVehicle.value
-            if (vehicle != null) {
-                vehicleDao.updateVehicle(vehicle.copy(healthScore = 98, lastScanDate = System.currentTimeMillis()))
-            }
+            // Clearing simulated codes is not evidence that the real vehicle is healthy.
             recalculatePredictiveHealth()
         }
     }
@@ -1106,26 +1097,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Deep AI Diagnostic Report Generation
     fun generateAiDeepReport() {
         val dtcs = _activeDtcs.value
-        val vehicle = selectedVehicle.value ?: Vehicle(
-            make = "Toyota",
-            model = "Hilux Revo",
-            year = 2021,
-            engine = "2.4 GD",
-            licensePlate = "8กบ 9421",
-            vin = "MR0BA3CD2M0123456",
-            currentMileageKm = 68500
-        )
+        val vehicle = selectedVehicle.value
+        if (vehicle == null) {
+            _diagnosticReport.value = if (_language.value == AppLanguage.TH) {
+                "ยังสร้างรายงานไม่ได้: กรุณาเลือกข้อมูลรถก่อน ระบบจะไม่สมมติรถหรือเลขตัวถังให้เอง"
+            } else {
+                "Report not generated: select a vehicle first. The app will not invent vehicle details."
+            }
+            return
+        }
+        if (dtcs.isEmpty()) {
+            _diagnosticReport.value = if (_language.value == AppLanguage.TH) {
+                "ยังสร้างรายงานข้อขัดข้องไม่ได้: ไม่มีรหัส DTC ที่ตรวจพบในขณะนี้ กรุณาสแกนระบบก่อน"
+            } else {
+                "Diagnostic report not generated: no detected DTCs are available. Run a scan first."
+            }
+            return
+        }
 
         viewModelScope.launch {
             _isGeneratingReport.value = true
-            val report = aiRepository.analyzeDeepDiagnosis(
-                dtcs = if (dtcs.isEmpty()) listOf(DtcDatabase.allCodes[0], DtcDatabase.allCodes[1]) else dtcs,
-                freezeFrame = emulatorService.freezeFrame.value,
-                vehicle = vehicle,
-                language = _language.value
-            )
-            _diagnosticReport.value = report
-            _isGeneratingReport.value = false
+            try {
+                _diagnosticReport.value = aiRepository.analyzeDeepDiagnosis(
+                    dtcs = dtcs,
+                    freezeFrame = emulatorService.freezeFrame.value,
+                    vehicle = vehicle,
+                    language = _language.value
+                )
+            } finally {
+                _isGeneratingReport.value = false
+            }
         }
     }
 
