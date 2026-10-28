@@ -379,7 +379,7 @@ fun PredictiveMaintenanceScreen(
                 isTh = isTh,
                 onAskAi = {
                     val prompt = if (isTh) {
-                        "ช่วยวิเคราะห์ความเสี่ยงและวิธีซ่อมแซมชิ้นส่วน '${component.nameTh}' ของรถ ${vehicle?.make ?: "Toyota"} ${vehicle?.model ?: "Revo"} เลขไมล์ ${summary.mileageAnalyzedKm} กม. อาการ: ${component.reasonTh} แนะนำอะไหล่และค่าแรงโดยละเอียด"
+                        "ช่วยวิเคราะห์ความเสี่ยงและวิธีซ่อมแซมชิ้นส่วน '${component.nameTh}' ของรถ ${vehicle?.make ?: "ไม่ระบุ"} ${vehicle?.model ?: "ไม่ระบุ"} เลขไมล์ ${summary.mileageAnalyzedKm} กม. อาการ: ${component.reasonTh} แนะนำอะไหล่และค่าแรงโดยละเอียด"
                     } else {
                         "Please provide diagnostic breakdown and repair procedure for '${component.nameEn}' on ${vehicle?.make} ${vehicle?.model}. Symptoms: ${component.reasonEn}."
                     }
