@@ -829,11 +829,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        if (_operationMode.value == AppOperationMode.REAL_HARDWARE &&
+            system !in listOf(DiagnosticSystem.ALL, DiagnosticSystem.ENGINE)
+        ) {
+            _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
+                "ยังไม่รองรับการสแกน ECU เฉพาะระบบนี้: ขณะนี้รองรับเฉพาะ Generic OBD-II สำหรับรหัสเครื่องยนต์/ระบบส่งกำลังที่ ECU ตอบกลับ"
+            } else {
+                "System-specific ECU scan is not implemented. Current hardware path supports generic OBD-II responses only."
+            }
+            return
+        }
+
         viewModelScope.launch {
             _isScanning.value = true
             _scanProgress.value = 0f
 
-            val steps = when (system) {
+            val steps = if (_operationMode.value == AppOperationMode.REAL_HARDWARE) {
+                listOf(
+                    "Detecting OBD protocol via adapter...",
+                    "Validating ECU response to supported-PID query...",
+                    "Reading confirmed DTCs (Mode 03)...",
+                    "Reading pending DTCs (Mode 07)...",
+                    "Reading permanent DTCs (Mode 0A)..."
+                ).map { it to it }
+            } else when (system) {
                 DiagnosticSystem.ALL -> listOf(
                     "Connecting via ISO 15765-4 High-Speed CAN..." to "เชื่อมต่อผ่านเครือข่ายความเร็วสูง CAN Bus 500k...",
                     "Scanning Engine ECM Module (P0xxx)..." to "กำลังสแกนกล่องเครื่องยนต์ ECM (รหัส P)...",
@@ -902,7 +921,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     systemLogger.log(if (ev.isSuccess) "INFO" else "WARN", "OBD_TX_RX", "CMD: ${ev.command} | RES: ${ev.rawResponse}", "Latency: ${ev.latencyMs}ms")
                 }
 
-                // Map AgonisticDtcResult to DtcCode
+                if (scanResult.status != com.example.service.DiagnosticScanStatus.SUCCESS &&
+                    scanResult.status != com.example.service.DiagnosticScanStatus.NO_DTC
+                ) {
+                    _isScanning.value = false
+                    _scanProgress.value = 0f
+                    _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
+                        "สแกนไม่สำเร็จ: ไม่ได้รับผลตอบกลับ ECU ที่ยืนยันได้ (${scanResult.status})"
+                    } else {
+                        "Scan failed: no verified ECU scan result (${scanResult.status})."
+                    }
+                    _diagnosticReport.value = _currentScanSystem.value
+                    return@launch
+                }
+
+                // Map only DTCs returned by a completed generic OBD-II response.
                 scanResult.dtcList.map { res ->
                     DtcDatabase.findByCode(res.code) ?: DtcCode(
                         code = res.code,
@@ -956,19 +989,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _activeDtcs.value = detected
             _isMilOn.value = detected.isNotEmpty()
             _isScanning.value = false
-            _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
-                "สแกนระบบสำเร็จ (พบ ${detected.size} รหัสข้อผิดพลาด)"
+            _currentScanSystem.value = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+                if (_language.value == AppLanguage.TH) {
+                    "การสแกนจำลองเสร็จสิ้น: สร้างรหัสจำลอง ${detected.size} รายการ"
+                } else {
+                    "Simulation complete: ${detected.size} simulated DTCs generated."
+                }
             } else {
-                "Module Scan Complete (${detected.size} DTCs Detected)"
+                if (_language.value == AppLanguage.TH) {
+                    "สแกน Generic OBD-II เสร็จสิ้น: ECU ตอบกลับ ${detected.size} รหัส (ไม่ใช่การสแกน ECU ทุกโมดูล)"
+                } else {
+                    "Generic OBD-II scan complete: ${detected.size} DTCs returned by the ECU (not a full all-module scan)."
+                }
             }
 
-            emulatorService.triggerSimulatedFault(detected.firstOrNull()?.code ?: "P0171")
+            if (_operationMode.value == AppOperationMode.SIMULATOR && detected.isNotEmpty()) {
+                emulatorService.triggerSimulatedFault(detected.first().code)
+            }
             recalculatePredictiveHealth()
 
             // Save Scan Record to Room
             val vehicle = selectedVehicle.value
             if (vehicle != null) {
-                val sensor = emulatorService.sensorData.value
+                val sensor = liveSensors.value
                 val record = ScanRecord(
                     vehicleId = vehicle.id,
                     timestamp = System.currentTimeMillis(),
@@ -989,10 +1032,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val context = getApplication<Application>()
             val isTh = _language.value == AppLanguage.TH
             val findingTitle = if (isTh) "🔍 ผลการสแกนโมดูล ${system.titleTh}" else "🔍 ${system.titleEn} Scan Findings"
-            val findingMsg = if (isTh) {
-                "ตรวจพบรหัสความผิดปกติ ${detected.size} รหัส (${detected.joinToString { it.code }}) บันทึก Freeze Frame แล้ว"
+            val findingMsg = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+                if (isTh) {
+                    "ผลจำลอง: สร้างรหัส ${detected.size} รายการ (${detected.joinToString { it.code }}); Freeze Frame เป็นข้อมูลจำลอง"
+                } else {
+                    "Simulation result: generated ${detected.size} DTCs (${detected.joinToString { it.code }}); Freeze Frame is simulated."
+                }
             } else {
-                "Found ${detected.size} DTCs (${detected.joinToString { it.code }}). Freeze Frame recorded."
+                if (isTh) {
+                    "ECU ตอบกลับรหัส ${detected.size} รายการ (${detected.joinToString { it.code }}); การสแกนนี้ยังไม่ได้อ่าน Freeze Frame"
+                } else {
+                    "ECU returned ${detected.size} DTCs (${detected.joinToString { it.code }}); Freeze Frame was not read by this scan path."
+                }
             }
             NotificationHelper.sendDiagnosticFindingNotification(context, findingTitle, findingMsg, 1005)
 
