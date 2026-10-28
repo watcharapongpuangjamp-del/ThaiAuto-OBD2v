@@ -193,7 +193,7 @@ class ObdDiagnosticEngine {
         )
     }
 
-    private fun isValidDtcModeResponse(raw: String, positiveService: String): Boolean {
+    internal fun isValidDtcModeResponse(raw: String, positiveService: String): Boolean {
         val cleaned = cleanResponse(raw).uppercase()
         if (cleaned.isBlank() || cleaned.contains("ERROR") ||
             cleaned.contains("UNABLE TO CONNECT") || cleaned.contains("STOPPED") ||
