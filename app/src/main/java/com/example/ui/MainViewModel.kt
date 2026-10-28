@@ -589,9 +589,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun recalculatePredictiveHealth() {
         val vehicle = selectedVehicle.value
         val logs = _maintenanceLogs.value
-        val sensors = emulatorService.sensorData.value
+        // Use the same source selected for the visible telemetry. In real-hardware
+        // mode this is USB ECU data, never the simulator's sensor stream.
+        val sensors = liveSensors.value
         val dtcs = _activeDtcs.value
-        val mode = emulatorService.currentDrivingMode.value
+        val mode = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+            emulatorService.currentDrivingMode.value
+        } else {
+            DrivingMode.IDLE
+        }
 
         _predictiveHealth.value = PredictiveMaintenanceEngine.analyzeVehicleHealth(
             vehicle = vehicle,
