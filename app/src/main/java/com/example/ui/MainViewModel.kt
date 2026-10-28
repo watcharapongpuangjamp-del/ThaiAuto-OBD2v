@@ -916,47 +916,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Cloud Database Synchronization & Backup
+    // Do not report success until a real remote operation is implemented and acknowledged.
     fun syncDatabaseWithCloud(onComplete: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            _isCloudSyncing.value = true
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) "กำลังเข้ารหัสและสำรองข้อมูลขึ้นคลาวด์..." else "Encrypting & Syncing with Cloud Vault..."
-            delay(1200) // Simulated secure cloud handshake & AES-256 upload
-
-            _lastCloudSyncTimestamp.value = System.currentTimeMillis()
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
-                "คลาวด์ปลอดภัย: ซิงค์ประวัติซ่อมและข้อมูลรถทั้งหมดแล้ว (AES-256 TLS 1.3)"
-            } else {
-                "Cloud Vault: All vehicle records encrypted & synced (AES-256 TLS 1.3)"
-            }
-            _isCloudSyncing.value = false
-
-            val context = getApplication<Application>()
-            val isTh = _language.value == AppLanguage.TH
-            val title = if (isTh) "☁️ คลาวด์ซิงค์สำเร็จ" else "☁️ Cloud Sync Completed"
-            val msg = if (isTh) "สำรองข้อมูลประวัติซ่อมบำรุงและผลการสแกนขึ้นเซิร์ฟเวอร์คลาวด์เรียบร้อยแล้ว" else "Vehicle maintenance logbook and scan history synchronized securely."
-            NotificationHelper.sendScheduledMaintenanceNotification(context, title, msg, notificationId = 1004)
-
-            _recentNotifications.value = listOf(System.currentTimeMillis() to "$title - $msg") + _recentNotifications.value
-            onComplete(true)
+        _isCloudSyncing.value = false
+        _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
+            "ยังไม่พร้อมซิงค์: ยังไม่ได้เชื่อมต่อบริการ Cloud Sync จริง"
+        } else {
+            "Sync unavailable: a real Cloud Sync service is not connected"
         }
+        onComplete(false)
     }
 
+    // Local refresh is not a cloud restore; fail closed until remote download is implemented.
     fun restoreDatabaseFromCloud(onComplete: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            _isCloudSyncing.value = true
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) "กำลังดึงข้อมูลประวัติซ่อมจากคลาวด์..." else "Fetching vehicle history from Cloud Vault..."
-            delay(1400)
-
-            refreshMaintenanceLogs()
-            recalculatePredictiveHealth()
-            _isCloudSyncing.value = false
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
-                "กู้คืนข้อมูลสำเร็จ: โหลดประวัติรถและบันทึกซ่อมเรียบร้อย"
-            } else {
-                "Cloud Restore Complete: Vehicle logs restored"
-            }
-            onComplete(true)
+        _isCloudSyncing.value = false
+        _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
+            "กู้คืนจากคลาวด์ไม่ได้: ยังไม่ได้เชื่อมต่อบริการ Cloud Restore จริง"
+        } else {
+            "Restore unavailable: a real Cloud Restore service is not connected"
         }
+        onComplete(false)
     }
 
     // Advanced Diagnostic Module Scanner (Targeted per Module or All)
