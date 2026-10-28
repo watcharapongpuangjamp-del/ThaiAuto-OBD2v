@@ -1070,7 +1070,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vContext = if (vehicle != null) {
                 "${vehicle.make} ${vehicle.model} (${vehicle.year}), ไมล์ ${vehicle.currentMileageKm} km, เชื้อเพลิง ${vehicle.fuelType}"
             } else {
-                "Toyota Hilux Revo 2.4 GD Rocco 2021"
+                if (_language.value == AppLanguage.TH) "ยังไม่ได้เลือกรถ" else "No vehicle selected"
             }
 
             val replyText = aiRepository.chat(
