@@ -1,8 +1,6 @@
 package com.example.data.remote
 
 import android.util.Log
-import com.google.firebase.auth.FirebaseAuth
-import org.json.JSONArray
 import org.json.JSONObject
 
 enum class OperationType(val value: String) {
@@ -14,33 +12,21 @@ enum class OperationType(val value: String) {
     WRITE("write")
 }
 
+/**
+ * Log only non-sensitive failure metadata. Never include auth identifiers,
+ * email addresses, provider metadata, raw exception messages, or document paths.
+ *
+ * Callers must still propagate/handle the original exception; logging is not
+ * a substitute for reporting a failed operation to the UI.
+ */
 fun handleFirestoreError(exception: Exception, operationType: OperationType, path: String?): String {
-    val auth = FirebaseAuth.getInstance()
-    val currentUser = auth.currentUser
-
-    val providerInfoList = currentUser?.providerData?.map { provider ->
-        JSONObject().apply {
-            put("providerId", provider.providerId)
-            put("email", provider.email)
-        }
-    } ?: emptyList()
-
-    val authInfoJson = JSONObject().apply {
-        put("userId", currentUser?.uid)
-        put("email", currentUser?.email)
-        put("emailVerified", currentUser?.isEmailVerified)
-        put("tenantId", currentUser?.tenantId)
-        put("providerInfo", JSONArray(providerInfoList))
-    }
-
     val errorInfoJson = JSONObject().apply {
-        put("error", exception.message ?: exception.toString())
+        put("errorType", exception::class.java.simpleName)
         put("operationType", operationType.value)
-        put("path", path)
-        put("authInfo", authInfoJson)
+        put("resource", path?.substringAfterLast('/')?.takeIf { it.matches(Regex("[a-zA-Z_]+")) } ?: "redacted")
     }
 
     val jsonString = errorInfoJson.toString()
-    Log.e("FirestoreError", "Firestore Error: $jsonString")
+    Log.e("FirestoreError", "Firestore operation failed: $jsonString")
     return jsonString
 }
