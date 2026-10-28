@@ -1177,7 +1177,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 _diagnosticReport.value = aiRepository.analyzeDeepDiagnosis(
                     dtcs = dtcs,
-                    freezeFrame = emulatorService.freezeFrame.value,
+                    freezeFrame = if (_operationMode.value == AppOperationMode.SIMULATOR) emulatorService.freezeFrame.value else null,
                     vehicle = vehicle,
                     language = _language.value
                 )
