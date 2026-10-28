@@ -298,6 +298,19 @@ fun PredictiveMaintenanceScreen(
             }
         }
 
+        item {
+            Text(
+                text = if (isTh) {
+                    "หมายเหตุ: คะแนนสุขภาพ ความเสี่ยง ระยะทาง/วันที่คงเหลือ และราคาชิ้นส่วนเป็นค่าประเมินจากกฎคงที่ ไม่ใช่ความน่าจะเป็นที่ผ่านการรับรองทางสถิติหรือข้อมูลเฉพาะรุ่นรถ โปรดตรวจสอบคู่มือผู้ผลิตและให้ช่างตรวจยืนยัน"
+                } else {
+                    "Note: health scores, risk values, remaining life, and part prices are heuristic estimates—not statistically validated probabilities or vehicle-specific OEM data. Verify against the manufacturer's service information and a qualified technician."
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         // Driving Stress Profile Selector (Interactively changes telemetry conditions)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
