@@ -20,12 +20,14 @@ import com.example.data.model.UsbSerialDeviceInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -83,6 +85,7 @@ class UsbObdDriver(
     private var inEndpoint: UsbEndpoint? = null
     private var outEndpoint: UsbEndpoint? = null
     private var streamingJob: Job? = null
+    private val commandMutex = Mutex()
     private val diagnosticEngine = ObdDiagnosticEngine()
 
     suspend fun runDiagnosticScan(
@@ -90,14 +93,39 @@ class UsbObdDriver(
         maxRetries: Int = 2,
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): DiagnosticScanResult {
-        return diagnosticEngine.executeDiagnosticScan(
-            connection = activeUsbConnection,
-            outEp = outEndpoint,
-            inEp = inEndpoint,
-            timeoutMs = timeoutMs,
-            maxRetries = maxRetries,
-            onProgress = onProgress
-        )
+        return withSerialSession {
+            diagnosticEngine.executeDiagnosticScan(
+                connection = activeUsbConnection,
+                outEp = outEndpoint,
+                inEp = inEndpoint,
+                timeoutMs = timeoutMs,
+                maxRetries = maxRetries,
+                onProgress = onProgress
+            )
+        }
+    }
+
+    private suspend fun <T> withSerialSession(block: suspend () -> T): T {
+        commandMutex.lock()
+        var shouldResumeStreaming = false
+        try {
+            shouldResumeStreaming = streamingJob?.isActive == true
+            if (shouldResumeStreaming) streamingJob?.cancelAndJoin()
+            return block()
+        } finally {
+            try {
+                if (shouldResumeStreaming && _isUsbConnected.value) {
+                    val connection = activeUsbConnection
+                    val outEp = outEndpoint
+                    val inEp = inEndpoint
+                    if (connection != null && outEp != null && inEp != null) {
+                        startRealHardwarePollingLoop(connection, outEp, inEp)
+                    }
+                }
+            } finally {
+                commandMutex.unlock()
+            }
+        }
     }
 
     // Broadcast receiver for USB detach/attach and permission grant events
@@ -698,22 +726,37 @@ class UsbObdDriver(
             var rawReply = ""
             var meaningTh = ""
             var meaningEn = ""
-            var isSuccess = true
+            var isSuccess = false
+            try {
+                withSerialSession {
+                    val conn = activeUsbConnection
+                    val epOut = outEndpoint
+                    val epIn = inEndpoint
 
-            val conn = activeUsbConnection
-            val epOut = outEndpoint
-            val epIn = inEndpoint
-
-            if (conn != null && epOut != null && epIn != null && _isUsbConnected.value) {
-                // Send directly to real physical hardware
-                rawReply = sendRealCommandWithTimeout(conn, epOut, epIn, "$cleanCmd\r", 1500)
-                meaningTh = "ส่งคำสั่งไปยังฮาร์ดแวร์ USB จริง: ตอบกลับ '$rawReply'"
-                meaningEn = "Sent directly to physical USB OBD adapter"
-            } else {
-                rawReply = "ERROR: USB NOT CONNECTED"
-                meaningTh = "ไม่ได้เชื่อมต่อสาย USB (พอร์ตปิดอยู่)"
-                meaningEn = "USB Port is closed / not connected"
-                isSuccess = false
+                    if (conn != null && epOut != null && epIn != null && _isUsbConnected.value) {
+                        rawReply = sendRealCommandWithTimeout(conn, epOut, epIn, "$cleanCmd\r", 1500)
+                        isSuccess = if (cleanCmd == "04") {
+                            isMode04ClearAcknowledged(rawReply)
+                        } else {
+                            rawReply.isNotBlank() && !listOf("ERROR", "UNABLE TO CONNECT", "CAN ERROR", "BUS ERROR", "STOPPED")
+                                .any(rawReply.uppercase(Locale.US)::contains)
+                        }
+                        meaningTh = "ส่งคำสั่งไปยังฮาร์ดแวร์ USB จริง: ตอบกลับ '$rawReply'"
+                        meaningEn = if (isSuccess) {
+                            "Command acknowledged by the USB OBD adapter"
+                        } else {
+                            "Command was not acknowledged by the USB OBD adapter"
+                        }
+                    } else {
+                        rawReply = "ERROR: USB NOT CONNECTED"
+                        meaningTh = "ไม่ได้เชื่อมต่อสาย USB (พอร์ตปิดอยู่)"
+                        meaningEn = "USB Port is closed / not connected"
+                    }
+                }
+            } catch (e: Exception) {
+                rawReply = "ERROR: USB COMMAND FAILED"
+                meaningTh = "คำสั่ง USB ล้มเหลว"
+                meaningEn = "USB command failed"
             }
 
             val latency = System.currentTimeMillis() - startTime

@@ -79,6 +79,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AppLanguage
+import com.example.data.model.AppOperationMode
 import com.example.data.model.DiagnosticSystem
 import com.example.data.model.DtcCategory
 import com.example.data.model.DtcCode
@@ -93,6 +94,7 @@ fun DiagnosticScannerScreen(
 ) {
     val language by viewModel.language.collectAsState()
     val isTh = language == AppLanguage.TH
+    val operationMode by viewModel.operationMode.collectAsState()
 
     val selectedSystem by viewModel.selectedDiagnosticSystem.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
@@ -612,17 +614,29 @@ fun DiagnosticScannerScreen(
             },
             text = {
                 Text(
-                    text = if (isTh) {
-                        "การส่งคำสั่ง Mode 04 / UDS 0x14 จะลบรหัส DTC, รีเซ็ตค่า Freeze Frame และสั่งดับไฟ Check Engine / MIL คุณต้องการดำเนินการต่อหรือไม่?"
-                    } else {
-                        "Sending Mode 04 / UDS 0x14 will clear diagnostic trouble codes, reset freeze frame snapshots, and extinguish the MIL lamp. Continue?"
+                    text = when {
+                        operationMode == AppOperationMode.SIMULATOR -> if (isTh) {
+                            "การดำเนินการนี้ลบรหัสจำลองในแอปเท่านั้น และไม่ส่งคำสั่งไปยังรถจริง ต้องการดำเนินการต่อหรือไม่?"
+                        } else {
+                            "This clears simulated DTCs in the app only. No command is sent to a vehicle. Continue?"
+                        }
+                        selectedSystem != DiagnosticSystem.ALL && selectedSystem != DiagnosticSystem.ENGINE -> if (isTh) {
+                            "OBD-II Mode 04 ใช้ลบรหัสจากกล่องเครื่องยนต์เท่านั้น ไม่สามารถสั่งลบ ABS, SRS หรือโมดูลอื่นได้ หากเลือกโมดูลนี้จะไม่มีการส่งคำสั่ง"
+                        } else {
+                            "Generic OBD-II Mode 04 only targets the engine ECU. It cannot clear ABS, SRS, or other modules; no command will be sent for this selection."
+                        }
+                        else -> if (isTh) {
+                            "Mode 04 ส่งคำขอลบรหัส OBD-II ที่เกี่ยวกับไอเสียและ Freeze Frame จากกล่องเครื่องยนต์เท่านั้น รหัสถาวร Mode 0A และโมดูลอื่นอาจยังอยู่ หลังตอบรับให้สแกนซ้ำเพื่อตรวจสอบ ต้องการดำเนินการต่อหรือไม่?"
+                        } else {
+                            "Mode 04 requests clearing emissions-related OBD-II codes and freeze-frame data from the engine ECU only. Permanent Mode 0A codes and other modules may remain. Rescan after acknowledgment to verify. Continue?"
+                        }
                     }
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.clearDtcFaultCodes(selectedSystem)
+                        viewModel.clearDtcFaultCodes(selectedSystem, confirmPhysicalClear = true)
                         showClearConfirmDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
