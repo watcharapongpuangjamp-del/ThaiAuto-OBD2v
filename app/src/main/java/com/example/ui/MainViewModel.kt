@@ -1031,7 +1031,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Dispatch Push Notifications for Diagnostic Findings & Critical Alerts
             val context = getApplication<Application>()
             val isTh = _language.value == AppLanguage.TH
-            val findingTitle = if (isTh) "🔍 ผลการสแกนโมดูล ${system.titleTh}" else "🔍 ${system.titleEn} Scan Findings"
+            val findingTitle = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+                if (isTh) "🔍 ผลการสแกนจำลอง ${system.titleTh}" else "🔍 Simulated ${system.titleEn} Findings"
+            } else {
+                if (isTh) "🔍 ผลการสแกน Generic OBD-II" else "🔍 Generic OBD-II Scan Findings"
+            }
             val findingMsg = if (_operationMode.value == AppOperationMode.SIMULATOR) {
                 if (isTh) {
                     "ผลจำลอง: สร้างรหัส ${detected.size} รายการ (${detected.joinToString { it.code }}); Freeze Frame เป็นข้อมูลจำลอง"
