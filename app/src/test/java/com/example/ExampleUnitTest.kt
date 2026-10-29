@@ -82,7 +82,7 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun permanentStatusIsRetainedWhenNoConfirmedOrPendingStatusExists() {
+    fun pendingStatusTakesPrecedenceOverPermanentStatus() {
         val results = mutableMapOf<String, AgonisticDtcResult>()
 
         engine.parseDtcResponse("4A 03 01", DtcStatus.PERMANENT, results)
