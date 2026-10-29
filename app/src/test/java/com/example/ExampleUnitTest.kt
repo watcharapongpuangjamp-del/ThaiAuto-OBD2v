@@ -69,4 +69,25 @@ class ExampleUnitTest {
         assertTrue(results.containsKey("P0301"))
         assertEquals(2, results.size)
     }
+
+    @Test
+    fun repeatedDtcKeepsConfirmedStatusInsteadOfDowngrading() {
+        val results = mutableMapOf<String, AgonisticDtcResult>()
+
+        engine.parseDtcResponse("43 01 33", DtcStatus.CONFIRMED, results)
+        engine.parseDtcResponse("47 01 33", DtcStatus.PENDING, results)
+        engine.parseDtcResponse("4A 01 33", DtcStatus.PERMANENT, results)
+
+        assertEquals(DtcStatus.CONFIRMED, results["P0133"]?.status)
+    }
+
+    @Test
+    fun permanentStatusIsRetainedWhenNoConfirmedOrPendingStatusExists() {
+        val results = mutableMapOf<String, AgonisticDtcResult>()
+
+        engine.parseDtcResponse("4A 03 01", DtcStatus.PERMANENT, results)
+        engine.parseDtcResponse("47 03 01", DtcStatus.PENDING, results)
+
+        assertEquals(DtcStatus.PENDING, results["P0301"]?.status)
+    }
 }
