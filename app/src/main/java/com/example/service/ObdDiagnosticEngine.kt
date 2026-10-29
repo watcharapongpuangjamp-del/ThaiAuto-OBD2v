@@ -326,13 +326,21 @@ class ObdDiagnosticEngine {
                             val code = decodeDtcBytes(b1, b2)
                             if (code.isNotBlank()) {
                                 val info = DtcDatabase.findByCode(code)
-                                outMap[code] = AgonisticDtcResult(
-                                    code = code,
-                                    status = status,
-                                    rawHexBytes = "$b1Str $b2Str",
-                                    descriptionTh = info?.thDescription ?: "รหัสข้อผิดพลาดมาตรฐาน OBD-II ($code)",
-                                    descriptionEn = info?.enDescription ?: "Standard OBD-II Diagnostic Trouble Code ($code)"
-                                )
+                                val existing = outMap[code]
+                                val incomingPriority = dtcStatusPriority(status)
+                                val existingPriority = existing?.let { dtcStatusPriority(it.status) } ?: -1
+                                // The same DTC can appear in more than one OBD mode.
+                                // Keep the strongest known status instead of downgrading
+                                // a confirmed fault to pending/permanent based on scan order.
+                                if (existing == null || incomingPriority > existingPriority) {
+                                    outMap[code] = AgonisticDtcResult(
+                                        code = code,
+                                        status = status,
+                                        rawHexBytes = "$b1Str $b2Str",
+                                        descriptionTh = info?.thDescription ?: "รหัสข้อผิดพลาดมาตรฐาน OBD-II ($code)",
+                                        descriptionEn = info?.enDescription ?: "Standard OBD-II Diagnostic Trouble Code ($code)"
+                                    )
+                                }
                             }
                         } catch (e: Exception) {
                             // Parsing error for this pair
@@ -346,6 +354,13 @@ class ObdDiagnosticEngine {
                 i++
             }
         }
+    }
+
+    private fun dtcStatusPriority(status: DtcStatus): Int = when (status) {
+        DtcStatus.CONFIRMED -> 3
+        DtcStatus.PENDING -> 2
+        DtcStatus.PERMANENT -> 1
+        DtcStatus.UNKNOWN -> 0
     }
 
     private fun decodeDtcBytes(b1: Int, b2: Int): String {
