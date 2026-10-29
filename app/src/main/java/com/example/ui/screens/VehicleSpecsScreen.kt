@@ -268,6 +268,10 @@ fun VehicleSpecsScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(text = if (isTh) "บันทึกรถจากข้อมูลที่กรอก" else "Register vehicle details", fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
 
         item {
             Card(
