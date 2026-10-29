@@ -90,6 +90,14 @@ fun VehicleSpecsScreen(
 
     var showVinScanner by remember { mutableStateOf(false) }
     var showAddMaintenanceDialog by remember { mutableStateOf(false) }
+    var registerMake by remember { mutableStateOf("") }
+    var registerModel by remember { mutableStateOf("") }
+    var registerYear by remember { mutableStateOf("") }
+    var registerEngine by remember { mutableStateOf("") }
+    var registerPlate by remember { mutableStateOf("") }
+    var registerMileage by remember { mutableStateOf("") }
+    var registerFuel by remember { mutableStateOf("") }
+    var registerProvince by remember { mutableStateOf("กรุงเทพมหานคร") }
 
     if (showVinScanner) {
         VinScannerDialog(
@@ -212,65 +220,55 @@ fun VehicleSpecsScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        val decodedMake = decodedVin["make"]?.trim()?.takeIf { it.isNotEmpty() }
-                        val decodedModel = decodedVin["model"]?.trim()?.takeIf { it.isNotEmpty() }
-                        val decodedYear = decodedVin["modelYear"]?.toIntOrNull()
-                        val decodedEngine = decodedVin["engine"]?.trim()?.takeIf { it.isNotEmpty() }
-                        val decodedPlate = decodedVin["licensePlate"]?.trim()?.takeIf { it.isNotEmpty() }
-                        val decodedMileage = decodedVin["mileage"]?.toIntOrNull()
-                        val decodedFuel = decodedVin["fuelType"]?.trim()?.takeIf { it.isNotEmpty() }
-                        val canRegisterDecodedVehicle = vinInput.trim().length == 17 &&
-                            decodedMake != null && decodedModel != null &&
-                            decodedYear != null && decodedEngine != null &&
-                            decodedPlate != null && decodedMileage != null && decodedFuel != null
-
                         Text(
-                            text = if (canRegisterDecodedVehicle) {
-                                if (isTh) "ตรวจสอบรายละเอียดรถที่ถอดรหัสได้ก่อนบันทึก" else "Review decoded vehicle details before registration"
-                            } else {
-                                if (isTh) "ข้อมูล VIN ยังไม่ครบสำหรับลงทะเบียนรถอัตโนมัติ กรุณากรอกรายละเอียดรถจริงให้ครบก่อนบันทึก ระบบจะไม่เติมยี่ห้อ รุ่น ทะเบียน หรือเลขไมล์สมมติ" else "VIN data is insufficient for automatic registration. Provide verified vehicle details first; the app will not invent make, model, plate, or mileage."
-                            },
+                            text = if (isTh) "กรอกรายละเอียดรถจริงก่อนบันทึก (ไม่มีการเติมข้อมูลสมมติ)" else "Enter verified vehicle details before saving (no placeholder data is added)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        OutlinedTextField(value = registerMake, onValueChange = { registerMake = it }, label = { Text(if (isTh) "ยี่ห้อ" else "Make") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerModel, onValueChange = { registerModel = it }, label = { Text(if (isTh) "รุ่น" else "Model") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerYear, onValueChange = { registerYear = it.filter(Char::isDigit).take(4) }, label = { Text(if (isTh) "ปีรุ่น" else "Model year") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerEngine, onValueChange = { registerEngine = it }, label = { Text(if (isTh) "เครื่องยนต์" else "Engine") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerPlate, onValueChange = { registerPlate = it }, label = { Text(if (isTh) "ทะเบียนรถ" else "License plate") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerProvince, onValueChange = { registerProvince = it }, label = { Text(if (isTh) "จังหวัดทะเบียน" else "Registration province") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerMileage, onValueChange = { registerMileage = it.filter(Char::isDigit) }, label = { Text(if (isTh) "เลขไมล์ (กม.)" else "Mileage (km)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerFuel, onValueChange = { registerFuel = it }, label = { Text(if (isTh) "เชื้อเพลิง" else "Fuel type") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                        val parsedYear = registerYear.toIntOrNull()
+                        val parsedMileage = registerMileage.toIntOrNull()
+                        val canRegisterVehicle = vinInput.trim().length == 17 &&
+                            registerMake.isNotBlank() && registerModel.isNotBlank() &&
+                            parsedYear != null && parsedYear in 1886..2100 &&
+                            registerEngine.isNotBlank() && registerPlate.isNotBlank() &&
+                            parsedMileage != null && parsedMileage >= 0 && registerFuel.isNotBlank()
 
                         Button(
                             onClick = {
-                                val make = decodedMake ?: return@Button
-                                val model = decodedModel ?: return@Button
-                                val year = decodedYear ?: return@Button
-                                val engine = decodedEngine ?: return@Button
-                                val plate = decodedPlate ?: return@Button
-                                val mileage = decodedMileage ?: return@Button
-                                val fuel = decodedFuel ?: return@Button
-                                if (vinInput.trim().length != 17) return@Button
+                                val year = parsedYear ?: return@Button
+                                val mileage = parsedMileage ?: return@Button
+                                if (!canRegisterVehicle) return@Button
                                 viewModel.addNewVehicle(
-                                    make = make,
-                                    model = model,
+                                    make = registerMake.trim(),
+                                    model = registerModel.trim(),
                                     year = year,
-                                    engine = engine,
-                                    plate = plate,
-                                    province = decodedVin["province"]?.trim()?.takeIf { it.isNotEmpty() } ?: "",
+                                    engine = registerEngine.trim(),
+                                    plate = registerPlate.trim(),
+                                    province = registerProvince.trim(),
                                     vin = vinInput.trim().uppercase(),
                                     mileage = mileage,
-                                    fuel = fuel
+                                    fuel = registerFuel.trim()
                                 )
                             },
-                            enabled = canRegisterDecodedVehicle,
+                            enabled = canRegisterVehicle,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AutoGreen)
                         ) {
                             Icon(imageVector = Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = if (isTh) "บันทึกรถจากข้อมูลที่ยืนยันแล้ว" else "Register verified vehicle details", fontSize = 12.sp)
+                            Text(text = if (isTh) "บันทึกรถจากข้อมูลที่กรอก" else "Register vehicle details", fontSize = 12.sp)
                         }
-                    }
-                }
-            }
-        }
 
-        
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
