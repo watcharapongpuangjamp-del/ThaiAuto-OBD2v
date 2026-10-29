@@ -43,34 +43,46 @@ service cloud.firestore {
 
     function isValidScanRecord(data) {
       return data.userId is string && data.userId == request.auth.uid &&
-             data.vehicleId is string && data.vehicleId.size() > 0 &&
-             (!('dtcCodes' in data) || data.dtcCodes == null || (data.dtcCodes is list && data.dtcCodes.size() <= 50)) &&
-             (!('mileageAtScanKm' in data) || data.mileageAtScanKm == null || data.mileageAtScanKm is int) &&
-             (!('isMilOn' in data) || data.isMilOn == null || data.isMilOn is bool) &&
-             (!('freezeFrameJson' in data) || data.freezeFrameJson == null || (data.freezeFrameJson is string && data.freezeFrameJson.size() <= 10000)) &&
-             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 2000));
+             data.vehicleId is string && data.vehicleId.size() > 0 && data.vehicleId.size() <= 128 &&
+             data.dtcCodes is string && data.dtcCodes.size() <= 1000 &&
+             data.dtcCount is int && data.dtcCount >= 0 && data.dtcCount <= 100 &&
+             data.milStatus is bool &&
+             data.healthSummaryTh is string && data.healthSummaryTh.size() <= 2000 &&
+             data.healthSummaryEn is string && data.healthSummaryEn.size() <= 2000 &&
+             data.rpm is int && data.rpm >= 0 && data.rpm <= 50000 &&
+             data.coolantTempC is int && data.coolantTempC >= -50 && data.coolantTempC <= 250 &&
+             data.speedKmh is int && data.speedKmh >= 0 && data.speedKmh <= 500 &&
+             data.batteryVoltage is number && data.batteryVoltage >= 0 && data.batteryVoltage <= 100;
     }
 
     function isValidMaintenanceLog(data) {
       return data.userId is string && data.userId == request.auth.uid &&
-             data.vehicleId is string && data.vehicleId.size() > 0 &&
-             data.serviceName is string && data.serviceName.size() > 0 && data.serviceName.size() <= 200 &&
-             (!('serviceType' in data) || data.serviceType == null || (data.serviceType is string && data.serviceType.size() <= 100)) &&
-             (!('costThb' in data) || data.costThb == null || data.costThb is int) &&
-             (!('mileageKm' in data) || data.mileageKm == null || data.mileageKm is int) &&
-             (!('serviceDate' in data) || data.serviceDate == null || (data.serviceDate is string && data.serviceDate.size() <= 50)) &&
-             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 2000));
+             data.vehicleId is string && data.vehicleId.size() > 0 && data.vehicleId.size() <= 128 &&
+             data.serviceTypeTh is string && data.serviceTypeTh.size() <= 200 &&
+             data.serviceTypeEn is string && data.serviceTypeEn.size() <= 200 &&
+             data.mileageAtServiceKm is int && data.mileageAtServiceKm >= 0 &&
+             data.nextServiceMileageKm is int && data.nextServiceMileageKm >= 0 &&
+             data.costThb is number && data.costThb >= 0 &&
+             data.garageNameTh is string && data.garageNameTh.size() <= 200 &&
+             data.notes is string && data.notes.size() <= 2000 &&
+             data.isCompleted is bool;
     }
 
     function isValidTelemetrySnapshot(data) {
       return data.userId is string && data.userId == request.auth.uid &&
-             data.vehicleId is string && data.vehicleId.size() > 0 &&
-             data.snapshotName is string && data.snapshotName.size() > 0 && data.snapshotName.size() <= 100 &&
-             (!('coolantTempCelsius' in data) || data.coolantTempCelsius == null || data.coolantTempCelsius is int) &&
-             (!('engineRpm' in data) || data.engineRpm == null || data.engineRpm is int) &&
-             (!('vehicleSpeedKmh' in data) || data.vehicleSpeedKmh == null || data.vehicleSpeedKmh is int) &&
-             (!('fuelRailPressureBar' in data) || data.fuelRailPressureBar == null || data.fuelRailPressureBar is int) &&
-             (!('batteryVoltage' in data) || data.batteryVoltage == null || data.batteryVoltage is number);
+             data.vehicleName is string && data.vehicleName.size() <= 200 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.reason is string && data.reason.size() <= 2000 &&
+             data.speedKmh is int && data.speedKmh >= 0 && data.speedKmh <= 500 &&
+             data.rpm is int && data.rpm >= 0 && data.rpm <= 50000 &&
+             data.coolantTempC is int && data.coolantTempC >= -50 && data.coolantTempC <= 250 &&
+             data.intakeAirTempC is int && data.intakeAirTempC >= -50 && data.intakeAirTempC <= 250 &&
+             data.boostPressureBar is number && data.boostPressureBar >= -5 && data.boostPressureBar <= 20 &&
+             data.mafGps is number && data.mafGps >= 0 && data.mafGps <= 1000 &&
+             data.throttlePercent is number && data.throttlePercent >= 0 && data.throttlePercent <= 100 &&
+             data.batteryVoltage is number && data.batteryVoltage >= 0 && data.batteryVoltage <= 100 &&
+             data.activeDtcs is string && data.activeDtcs.size() <= 1000 &&
+             data.notes is string && data.notes.size() <= 2000;
     }
 
     // Match users collection

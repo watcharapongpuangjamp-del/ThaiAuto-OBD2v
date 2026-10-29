@@ -90,6 +90,14 @@ fun VehicleSpecsScreen(
 
     var showVinScanner by remember { mutableStateOf(false) }
     var showAddMaintenanceDialog by remember { mutableStateOf(false) }
+    var registerMake by remember { mutableStateOf("") }
+    var registerModel by remember { mutableStateOf("") }
+    var registerYear by remember { mutableStateOf("") }
+    var registerEngine by remember { mutableStateOf("") }
+    var registerPlate by remember { mutableStateOf("") }
+    var registerMileage by remember { mutableStateOf("") }
+    var registerFuel by remember { mutableStateOf("") }
+    var registerProvince by remember { mutableStateOf("กรุงเทพมหานคร") }
 
     if (showVinScanner) {
         VinScannerDialog(
@@ -212,36 +220,59 @@ fun VehicleSpecsScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isTh) "กรอกรายละเอียดรถจริงก่อนบันทึก (ไม่มีการเติมข้อมูลสมมติ)" else "Enter verified vehicle details before saving (no placeholder data is added)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(value = registerMake, onValueChange = { registerMake = it }, label = { Text(if (isTh) "ยี่ห้อ" else "Make") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerModel, onValueChange = { registerModel = it }, label = { Text(if (isTh) "รุ่น" else "Model") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerYear, onValueChange = { registerYear = it.filter(Char::isDigit).take(4) }, label = { Text(if (isTh) "ปีรุ่น" else "Model year") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerEngine, onValueChange = { registerEngine = it }, label = { Text(if (isTh) "เครื่องยนต์" else "Engine") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerPlate, onValueChange = { registerPlate = it }, label = { Text(if (isTh) "ทะเบียนรถ" else "License plate") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerProvince, onValueChange = { registerProvince = it }, label = { Text(if (isTh) "จังหวัดทะเบียน" else "Registration province") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerMileage, onValueChange = { registerMileage = it.filter(Char::isDigit) }, label = { Text(if (isTh) "เลขไมล์ (กม.)" else "Mileage (km)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = registerFuel, onValueChange = { registerFuel = it }, label = { Text(if (isTh) "เชื้อเพลิง" else "Fuel type") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                        val parsedYear = registerYear.toIntOrNull()
+                        val parsedMileage = registerMileage.toIntOrNull()
+                        val canRegisterVehicle = vinInput.trim().length == 17 &&
+                            registerMake.isNotBlank() && registerModel.isNotBlank() &&
+                            parsedYear != null && parsedYear in 1886..2100 &&
+                            registerEngine.isNotBlank() && registerPlate.isNotBlank() &&
+                            parsedMileage != null && parsedMileage >= 0 && registerFuel.isNotBlank()
+
                         Button(
                             onClick = {
-                                val make = decodedVin["make"] ?: "Toyota"
-                                val year = (decodedVin["modelYear"] ?: "2021").toIntOrNull() ?: 2021
+                                val year = parsedYear ?: return@Button
+                                val mileage = parsedMileage ?: return@Button
+                                if (!canRegisterVehicle) return@Button
                                 viewModel.addNewVehicle(
-                                    make = make,
-                                    model = "Vehicle-$year",
+                                    make = registerMake.trim(),
+                                    model = registerModel.trim(),
                                     year = year,
-                                    engine = "Engine Standard",
-                                    plate = "กข 1234",
-                                    province = "กรุงเทพมหานคร",
-                                    vin = vinInput,
-                                    mileage = 68500,
-                                    fuel = "ดีเซล (Diesel)"
+                                    engine = registerEngine.trim(),
+                                    plate = registerPlate.trim(),
+                                    province = registerProvince.trim(),
+                                    vin = vinInput.trim().uppercase(),
+                                    mileage = mileage,
+                                    fuel = registerFuel.trim()
                                 )
                             },
+                            enabled = canRegisterVehicle,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AutoGreen)
                         ) {
                             Icon(imageVector = Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = if (isTh) "บันทึกลงทะเบียนรถคันนี้เข้าอู่ (Register Car)" else "Register Vehicle into Cloud DB", fontSize = 12.sp)
+                            Text(text = if (isTh) "บันทึกรถจากข้อมูลที่กรอก" else "Register vehicle details", fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
 
-        // Secure Cloud-Based Database & Repair History Manager
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),

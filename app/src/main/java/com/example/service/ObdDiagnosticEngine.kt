@@ -124,7 +124,12 @@ class ObdDiagnosticEngine {
         val pid00 = sendWithRetry(connection, outEp, inEp, "0100\r", timeoutMs, maxRetries)
         evidenceList.add(pid00.second)
         
-        if (!pid00.second.isSuccess || pid00.first.contains("NO DATA", true) || pid00.first.contains("ERROR", true)) {
+        val pid00Compact = cleanResponse(pid00.first).uppercase().replace(Regex("\\s+"), "")
+        if (!pid00.second.isSuccess ||
+            pid00.first.contains("NO DATA", true) ||
+            pid00.first.contains("ERROR", true) ||
+            !pid00Compact.contains("4100")
+        ) {
             _scanStatus.value = DiagnosticScanStatus.TIMEOUT
             return@withContext DiagnosticScanResult(
                 sessionId = sessionId,
@@ -143,18 +148,27 @@ class ObdDiagnosticEngine {
         updateProgress(0.5f, "Scanning Confirmed DTCs (Mode 03)...", onProgress)
         val mode03 = sendWithRetry(connection, outEp, inEp, "03\r", timeoutMs, maxRetries)
         evidenceList.add(mode03.second)
+        if (!isValidDtcModeResponse(mode03.first, "43")) {
+            return@withContext failedDtcRead(sessionId, startTime, evidenceList)
+        }
         parseDtcResponse(mode03.first, DtcStatus.CONFIRMED, detectedDtcs)
 
         // Step 4: Scan Pending DTCs (Mode 07)
         updateProgress(0.7f, "Scanning Pending DTCs (Mode 07)...", onProgress)
         val mode07 = sendWithRetry(connection, outEp, inEp, "07\r", timeoutMs, maxRetries)
         evidenceList.add(mode07.second)
+        if (!isValidDtcModeResponse(mode07.first, "47")) {
+            return@withContext failedDtcRead(sessionId, startTime, evidenceList)
+        }
         parseDtcResponse(mode07.first, DtcStatus.PENDING, detectedDtcs)
 
         // Step 5: Scan Permanent DTCs (Mode 0A)
         updateProgress(0.9f, "Scanning Permanent DTCs (Mode 0A)...", onProgress)
         val mode0A = sendWithRetry(connection, outEp, inEp, "0A\r", timeoutMs, maxRetries)
         evidenceList.add(mode0A.second)
+        if (!isValidDtcModeResponse(mode0A.first, "4A")) {
+            return@withContext failedDtcRead(sessionId, startTime, evidenceList)
+        }
         parseDtcResponse(mode0A.first, DtcStatus.PERMANENT, detectedDtcs)
 
         updateProgress(1.0f, "Scan Complete", onProgress)
@@ -175,6 +189,37 @@ class ObdDiagnosticEngine {
             status = finalStatus,
             dtcList = dtcList,
             rawEvidence = evidenceList,
+            durationMs = System.currentTimeMillis() - startTime
+        )
+    }
+
+    internal fun isValidDtcModeResponse(raw: String, positiveService: String): Boolean {
+        val cleaned = cleanResponse(raw).uppercase()
+        if (cleaned.isBlank() || cleaned.contains("ERROR") ||
+            cleaned.contains("UNABLE TO CONNECT") || cleaned.contains("STOPPED") ||
+            cleaned.contains("?")
+        ) return false
+        if (cleaned.contains("NO DATA")) return true
+        val tokens = cleaned.split(Regex("\\s+"))
+        val serviceIndex = tokens.indexOf(positiveService)
+        if (serviceIndex < 0 || tokens.size < serviceIndex + 3) return false
+        return tokens[serviceIndex + 1].matches(Regex("[0-9A-F]{2}")) &&
+            tokens[serviceIndex + 2].matches(Regex("[0-9A-F]{2}"))
+    }
+
+    private fun failedDtcRead(
+        sessionId: String,
+        startTime: Long,
+        evidence: List<TerminalLogEntry>
+    ): DiagnosticScanResult {
+        _scanStatus.value = DiagnosticScanStatus.COMMUNICATION_ERROR
+        return DiagnosticScanResult(
+            sessionId = sessionId,
+            timestamp = startTime,
+            protocol = _detectedProtocol.value,
+            status = DiagnosticScanStatus.COMMUNICATION_ERROR,
+            dtcList = emptyList(),
+            rawEvidence = evidence,
             durationMs = System.currentTimeMillis() - startTime
         )
     }
@@ -259,7 +304,7 @@ class ObdDiagnosticEngine {
         return raw.replace(">", "").replace("\r", " ").replace("\n", " ").trim()
     }
 
-    private fun parseDtcResponse(raw: String, status: DtcStatus, outMap: MutableMap<String, AgonisticDtcResult>) {
+    internal fun parseDtcResponse(raw: String, status: DtcStatus, outMap: MutableMap<String, AgonisticDtcResult>) {
         val cleaned = cleanResponse(raw)
         val tokens = cleaned.split(Regex("\\s+"))
         var i = 0
@@ -281,13 +326,21 @@ class ObdDiagnosticEngine {
                             val code = decodeDtcBytes(b1, b2)
                             if (code.isNotBlank()) {
                                 val info = DtcDatabase.findByCode(code)
-                                outMap[code] = AgonisticDtcResult(
-                                    code = code,
-                                    status = status,
-                                    rawHexBytes = "$b1Str $b2Str",
-                                    descriptionTh = info?.thDescription ?: "รหัสข้อผิดพลาดมาตรฐาน OBD-II ($code)",
-                                    descriptionEn = info?.enDescription ?: "Standard OBD-II Diagnostic Trouble Code ($code)"
-                                )
+                                val existing = outMap[code]
+                                val incomingPriority = dtcStatusPriority(status)
+                                val existingPriority = existing?.let { dtcStatusPriority(it.status) } ?: -1
+                                // The same DTC can appear in more than one OBD mode.
+                                // Keep the strongest known status instead of downgrading
+                                // a confirmed fault to pending/permanent based on scan order.
+                                if (existing == null || incomingPriority > existingPriority) {
+                                    outMap[code] = AgonisticDtcResult(
+                                        code = code,
+                                        status = status,
+                                        rawHexBytes = "$b1Str $b2Str",
+                                        descriptionTh = info?.thDescription ?: "รหัสข้อผิดพลาดมาตรฐาน OBD-II ($code)",
+                                        descriptionEn = info?.enDescription ?: "Standard OBD-II Diagnostic Trouble Code ($code)"
+                                    )
+                                }
                             }
                         } catch (e: Exception) {
                             // Parsing error for this pair
@@ -301,6 +354,13 @@ class ObdDiagnosticEngine {
                 i++
             }
         }
+    }
+
+    private fun dtcStatusPriority(status: DtcStatus): Int = when (status) {
+        DtcStatus.CONFIRMED -> 3
+        DtcStatus.PENDING -> 2
+        DtcStatus.PERMANENT -> 1
+        DtcStatus.UNKNOWN -> 0
     }
 
     private fun decodeDtcBytes(b1: Int, b2: Int): String {

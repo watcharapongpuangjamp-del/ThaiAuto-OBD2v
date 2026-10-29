@@ -167,16 +167,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Google Drive Cloud Sync State
-    private val _googleDriveConnected = MutableStateFlow(true)
+    private val _googleDriveConnected = MutableStateFlow(false)
     val googleDriveConnected: StateFlow<Boolean> = _googleDriveConnected.asStateFlow()
 
-    private val _googleDriveAccountEmail = MutableStateFlow("watcharapong.puangjamp@gmail.com")
+    private val _googleDriveAccountEmail = MutableStateFlow("")
     val googleDriveAccountEmail: StateFlow<String> = _googleDriveAccountEmail.asStateFlow()
 
     private val _isGoogleDriveSyncing = MutableStateFlow(false)
     val isGoogleDriveSyncing: StateFlow<Boolean> = _isGoogleDriveSyncing.asStateFlow()
 
-    private val _lastCloudBackupTime = MutableStateFlow("2026-08-15 14:33:55 (Auto-Synced)")
+    private val _lastCloudBackupTime = MutableStateFlow("—")
     val lastCloudBackupTime: StateFlow<String> = _lastCloudBackupTime.asStateFlow()
 
     // Measurement Unit System State
@@ -299,81 +299,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _specialFunctionLog = MutableStateFlow<List<String>>(emptyList())
     val specialFunctionLog: StateFlow<List<String>> = _specialFunctionLog.asStateFlow()
 
+    /**
+     * Active actuator control is intentionally disabled until a vehicle-specific
+     * transport can validate ECU support, transmit the selected command, and
+     * confirm the real ECU response. Never synthesize an ACK or success result.
+     */
     fun runActiveTest(testNameTh: String, testNameEn: String, commands: List<String>) {
         if (_isExecutingActiveTest.value) return
-        viewModelScope.launch {
-            _isExecutingActiveTest.value = true
-            val logs = mutableListOf<String>()
-            val isTh = _language.value == AppLanguage.TH
-            val name = if (isTh) testNameTh else testNameEn
-            logs.add(if (isTh) "▶ เริ่มต้นการทดสอบสั่งการอุปกรณ์ (Active Test): $name" else "▶ Starting Active Test: $name")
-            _activeTestLog.value = logs.toList()
-
-            for (cmd in commands) {
-                delay(800)
-                if (_connectionType.value == ObdConnectionType.USB_OTG && _operationMode.value == AppOperationMode.REAL_HARDWARE) {
-                    usbDriver.sendCustomCommand(cmd)
-                }
-                logs.add("↳ $cmd -> OK (ACK 0x41)")
-                _activeTestLog.value = logs.toList()
-            }
-            delay(500)
-            logs.add(if (isTh) "✔ การทดสอบ $name สำเร็จ สั่งคืนค่าควบคุมปกติแก่ ECU" else "✔ Test $name Completed. Control returned to ECU.")
-            _activeTestLog.value = logs.toList()
-            _isExecutingActiveTest.value = false
+        val isTh = _language.value == AppLanguage.TH
+        val name = if (isTh) testNameTh else testNameEn
+        val message = if (isTh) {
+            "ยังไม่ดำเนินการ: ยังไม่มีการตรวจสอบคำสั่งและการตอบกลับจาก ECU จริงสำหรับรถรุ่นนี้"
+        } else {
+            "Not executed: vehicle-specific ECU command support and real response validation are not implemented."
         }
+        _activeTestLog.value = listOf(
+            if (isTh) "⚠ Active Test ถูกปิดเพื่อความปลอดภัย: $name" else "⚠ Active Test blocked for safety: $name",
+            message
+        )
+        _isExecutingActiveTest.value = false
     }
 
+    /**
+     * Special functions may write ECU configuration or perform adaptation.
+     * Keep them blocked until OEM-specific security access, compatibility checks,
+     * response validation, and recovery behavior are implemented.
+     */
     fun runComponentRegistration(functionNameTh: String, functionNameEn: String, parameterData: String) {
-        if (_isExecutingSpecialFunction.value) return
-        viewModelScope.launch {
-            _isExecutingSpecialFunction.value = true
-            val logs = mutableListOf<String>()
-            val isTh = _language.value == AppLanguage.TH
-            val name = if (isTh) functionNameTh else functionNameEn
-            logs.add(if (isTh) "▶ เริ่มกระบวนการลงทะเบียนและ Calibration: $name" else "▶ Starting Registration & Adaptation: $name")
-            if (parameterData.isNotBlank()) {
-                logs.add(if (isTh) "  ข้อมูลพารามิเตอร์: $parameterData" else "  Parameter payload: $parameterData")
-            }
-            _specialFunctionLog.value = logs.toList()
-
-            delay(700)
-            logs.add(if (isTh) "↳ 1. เข้าสู่โหมดวิชาการพิเศษ UDS Security Access (0x27 Seed/Key Exchange)..." else "↳ 1. UDS Security Access (0x27 Seed/Key Exchange)...")
-            _specialFunctionLog.value = logs.toList()
-
-            delay(900)
-            logs.add(if (isTh) "↳ 2. เขียนพารามิเตอร์ใหม่เข้าตาราง Flash EEPROM กล่อง ECU..." else "↳ 2. Writing new parameter payload into ECU EEPROM...")
-            _specialFunctionLog.value = logs.toList()
-
-            delay(800)
-            logs.add(if (isTh) "↳ 3. สั่งคำสั่ง Reset Adaptations & Re-learn Initial Values..." else "↳ 3. Executing Adaptation Reset & Re-learn Routine...")
-            _specialFunctionLog.value = logs.toList()
-
-            delay(600)
-            logs.add(if (isTh) "✔ ลงทะเบียนอุปกรณ์ $name และบันทึกค่าในกล่อง ECU สำเร็จ" else "✔ Component $name successfully registered & adapted in ECU.")
-            _specialFunctionLog.value = logs.toList()
-            _isExecutingSpecialFunction.value = false
-
-            val currentVeh = selectedVehicle.value
-            if (currentVeh != null) {
-                val now = System.currentTimeMillis()
-                maintenanceDao.insertLog(
-                    MaintenanceLog(
-                        vehicleId = currentVeh.id,
-                        serviceTypeTh = "ลงทะเบียน/Calibration: $functionNameTh",
-                        serviceTypeEn = "Special Function: $functionNameEn",
-                        mileageAtServiceKm = currentVeh.currentMileageKm,
-                        nextServiceMileageKm = currentVeh.currentMileageKm + 10000,
-                        serviceDate = now,
-                        nextServiceDate = now + (180L * 24 * 3600 * 1000),
-                        costThb = 0.0,
-                        garageNameTh = "AI OBD System Diagnostic Tool",
-                        notes = "Completed $name with parameters: $parameterData",
-                        isCompleted = true
-                    )
-                )
-            }
+        val isTh = _language.value == AppLanguage.TH
+        val name = if (isTh) functionNameTh else functionNameEn
+        val message = if (isTh) {
+            "ยังไม่ดำเนินการ: ฟังก์ชันลงทะเบียน/Calibration ต้องมีขั้นตอน OEM และการยืนยันจาก ECU จริง"
+        } else {
+            "Not executed: registration/calibration requires OEM-specific procedures and confirmed ECU responses."
         }
+        _specialFunctionLog.value = listOf(
+            if (isTh) "⚠ ปิดฟังก์ชันเพื่อความปลอดภัย: $name" else "⚠ Function blocked for safety: $name",
+            message
+        )
+        _isExecutingSpecialFunction.value = false
     }
 
     fun clearActiveTestLog() {
@@ -499,27 +463,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isCloudSyncing = MutableStateFlow(false)
     val isCloudSyncing: StateFlow<Boolean> = _isCloudSyncing.asStateFlow()
 
-    private val _lastCloudSyncTimestamp = MutableStateFlow<Long>(System.currentTimeMillis() - 1000 * 60 * 15)
+    private val _lastCloudSyncTimestamp = MutableStateFlow<Long>(0L)
     val lastCloudSyncTimestamp: StateFlow<Long> = _lastCloudSyncTimestamp.asStateFlow()
 
-    private val _cloudSyncStatus = MutableStateFlow("Cloud Vault: Secure & Synchronized (AES-256 Encrypted)")
+    private val _cloudSyncStatus = MutableStateFlow("Cloud Sync unavailable: no remote service connected")
     val cloudSyncStatus: StateFlow<String> = _cloudSyncStatus.asStateFlow()
 
     // Notification Log History State for Dashboard Notification Center
-    private val _recentNotifications = MutableStateFlow<List<Pair<Long, String>>>(
-        listOf(
-            (System.currentTimeMillis() - 1000 * 60 * 45) to "🔔 Scheduled Service: Engine Oil & Fuel Filter due at 70,000 km",
-            (System.currentTimeMillis() - 1000 * 60 * 15) to "⚠️ Diagnostic Finding: P0171 Fuel Trim System Lean detected",
-            (System.currentTimeMillis() - 1000 * 60 * 5) to "🛡️ Cloud Database: All vehicle records backed up securely"
-        )
-    )
+    private val _recentNotifications = MutableStateFlow<List<Pair<Long, String>>>(emptyList())
     val recentNotifications: StateFlow<List<Pair<Long, String>>> = _recentNotifications.asStateFlow()
 
     // Telemetry Graph History Points (for live charts)
-    private val _rpmHistory = MutableStateFlow<List<Int>>(listOf(800, 1200, 1800, 2100, 1850))
+    private val _rpmHistory = MutableStateFlow<List<Int>>(emptyList())
     val rpmHistory: StateFlow<List<Int>> = _rpmHistory.asStateFlow()
 
-    private val _speedHistory = MutableStateFlow<List<Int>>(listOf(0, 30, 60, 80, 85))
+    private val _speedHistory = MutableStateFlow<List<Int>>(emptyList())
     val speedHistory: StateFlow<List<Int>> = _speedHistory.asStateFlow()
 
     init {
@@ -539,90 +497,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Real-hardware mode must start without fictitious vehicles or service history.
+     * Demo fixtures should be loaded only through an explicit, clearly labeled
+     * simulator/demo action; never seed them into a user's production database.
+     */
     private fun initializeSampleData() {
         viewModelScope.launch(Dispatchers.IO) {
-            val count = vehicleDao.getVehicleCount()
-            if (count == 0) {
-                val v1 = Vehicle(
-                    make = "Toyota",
-                    model = "Hilux Revo 2.4 GD Rocco",
-                    year = 2021,
-                    engine = "2GD-FTV 2.4L VN Turbo",
-                    licensePlate = "8กบ 9421",
-                    provinceTh = "กรุงเทพมหานคร",
-                    vin = "MR0BA3CD2M0123456",
-                    currentMileageKm = 68500,
-                    fuelType = "ดีเซล (Diesel B7)",
-                    isSelected = true,
-                    healthScore = 88
-                )
-                val v2 = Vehicle(
-                    make = "Honda",
-                    model = "Civic RS 1.5 Turbo (FE)",
-                    year = 2022,
-                    engine = "L15BG 1.5L VTEC Turbo",
-                    licensePlate = "3ขค 5678",
-                    provinceTh = "กรุงเทพมหานคร",
-                    vin = "MHRFE1670NP008899",
-                    currentMileageKm = 34200,
-                    fuelType = "แก๊สโซฮอล์ 95 (Gasohol 95)",
-                    isSelected = false,
-                    healthScore = 96
-                )
-                val v3 = Vehicle(
-                    make = "Isuzu",
-                    model = "D-Max Hi-Lander 1.9 Ddi",
-                    year = 2020,
-                    engine = "RZ4E-TC 1.9L Blue Power",
-                    licensePlate = "กฉ 4321",
-                    provinceTh = "ชลบุรี",
-                    vin = "MP1TC41G2L1054321",
-                    currentMileageKm = 98000,
-                    fuelType = "ดีเซล (Diesel B10)",
-                    isSelected = false,
-                    healthScore = 91
-                )
-
-                val v1Id = vehicleDao.insertVehicle(v1)
-                vehicleDao.insertVehicle(v2)
-                vehicleDao.insertVehicle(v3)
-
-                // Add sample maintenance logs
-                maintenanceDao.insertLog(
-                    MaintenanceLog(
-                        vehicleId = v1Id,
-                        serviceTypeTh = "เปลี่ยนถ่ายน้ำมันเครื่องสังเคราะห์ 5W-30 + ไส้กรอง",
-                        serviceTypeEn = "Engine Oil 5W-30 & Filter Replacement",
-                        mileageAtServiceKm = 60000,
-                        nextServiceMileageKm = 70000,
-                        serviceDate = System.currentTimeMillis() - 90L * 24 * 3600 * 1000,
-                        nextServiceDate = System.currentTimeMillis() + 30L * 24 * 3600 * 1000,
-                        costThb = 2450.0,
-                        garageNameTh = "ศูนย์บริการ Toyota K.Motors",
-                        notes = "ตรวจเช็คระดับน้ำมันเบรกและผ้าเบรกปกติ"
-                    )
-                )
-
-                maintenanceDao.insertLog(
-                    MaintenanceLog(
-                        vehicleId = v1Id,
-                        serviceTypeTh = "เปลี่ยนกรองโซล่าดักน้ำ + กรองอากาศ",
-                        serviceTypeEn = "Fuel & Air Filter Replacement",
-                        mileageAtServiceKm = 50000,
-                        nextServiceMileageKm = 70000,
-                        serviceDate = System.currentTimeMillis() - 180L * 24 * 3600 * 1000,
-                        nextServiceDate = System.currentTimeMillis() + 15L * 24 * 3600 * 1000,
-                        costThb = 1180.0,
-                        garageNameTh = "อู่ช่างเล็ก คอมมอนเรล",
-                        notes = "ล้างแอร์โฟร์เซนเซอร์"
-                    )
-                )
-
-                // Real Hardware mode starts clean with 0 faults until physically scanned
-                _activeDtcs.value = emptyList()
-                _isMilOn.value = false
-            }
-
             refreshMaintenanceLogs()
             recalculatePredictiveHealth()
         }
@@ -708,9 +589,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun recalculatePredictiveHealth() {
         val vehicle = selectedVehicle.value
         val logs = _maintenanceLogs.value
-        val sensors = emulatorService.sensorData.value
+        // Use the same source selected for the visible telemetry. In real-hardware
+        // mode this is USB ECU data, never the simulator's sensor stream.
+        val sensors = liveSensors.value
         val dtcs = _activeDtcs.value
-        val mode = emulatorService.currentDrivingMode.value
+        val mode = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+            emulatorService.currentDrivingMode.value
+        } else {
+            DrivingMode.IDLE
+        }
 
         _predictiveHealth.value = PredictiveMaintenanceEngine.analyzeVehicleHealth(
             vehicle = vehicle,
@@ -869,94 +756,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun triggerServiceNotificationReminder() = triggerMaintenanceNotification()
 
     fun triggerMaintenanceNotification() {
+        val vehicle = selectedVehicle.value ?: return
         val context = getApplication<Application>()
         val isTh = _language.value == AppLanguage.TH
-        val vehicle = selectedVehicle.value
-        val carName = vehicle?.let { "${it.make} ${it.model}" } ?: "Toyota Hilux Revo"
-        val title = if (isTh) "🔔 กำหนดเช็คระยะ: $carName" else "🔔 Scheduled Service Reminder: $carName"
+        val carName = "${vehicle.make} ${vehicle.model}"
+        val title = if (isTh) "🔔 ตรวจสอบกำหนดบำรุงรักษา: $carName" else "🔔 Review Maintenance Schedule: $carName"
         val msg = if (isTh) {
-            "ถึงกำหนดเปลี่ยนถ่ายน้ำมันเครื่องสังเคราะห์ & ไส้กรองโซล่าแล้ว (เลขไมล์ ${vehicle?.currentMileageKm ?: 68500} กม.)"
+            "โปรดตรวจสอบประวัติและกำหนดบำรุงรักษาที่บันทึกไว้ในแอป ระบบยังไม่ได้ยืนยันว่าถึงกำหนดเข้ารับบริการ"
         } else {
-            "Engine synthetic oil & fuel filter service is due at ${vehicle?.currentMileageKm ?: 68500} km."
+            "Review the maintenance history and schedule recorded in the app. Service due status has not been verified."
         }
         NotificationHelper.sendScheduledMaintenanceNotification(context, title, msg, notificationId = 1001)
-
-        val logEntry = (System.currentTimeMillis()) to "$title - $msg"
-        _recentNotifications.value = listOf(logEntry) + _recentNotifications.value
+        _recentNotifications.value = listOf((System.currentTimeMillis()) to "$title - $msg") + _recentNotifications.value
     }
 
     fun triggerCriticalAlertNotification(customMessage: String? = null) {
+        val msg = customMessage?.takeIf { it.isNotBlank() } ?: return
         val context = getApplication<Application>()
         val isTh = _language.value == AppLanguage.TH
-        val title = if (isTh) "🚨 แจ้งเตือนวิกฤต: ตรวจพบความผิดปกติในระบบ" else "🚨 Critical Alert: Vehicle Telemetry Hazard"
-        val msg = customMessage ?: if (isTh) {
-            "ตรวจพบรหัส P0087 (แรงดันรางคอมมอนเรลตก) และอุณหภูมิน้ำหล่อเย็นสูงเกินเกณฑ์ปกติ กรุณาจอดพักหรือตรวจเช็คทันที"
-        } else {
-            "Detected P0087 (Fuel Rail Pressure Low) & high coolant temp. Pull over safely and inspect."
-        }
+        val title = if (isTh) "🚨 แจ้งเตือนวิกฤตจากข้อมูลที่ตรวจพบ" else "🚨 Critical Alert From Observed Data"
         NotificationHelper.sendCriticalAlertNotification(context, title, msg, notificationId = 1002)
-
-        val logEntry = (System.currentTimeMillis()) to "$title - $msg"
-        _recentNotifications.value = listOf(logEntry) + _recentNotifications.value
+        _recentNotifications.value = listOf((System.currentTimeMillis()) to "$title - $msg") + _recentNotifications.value
     }
 
     fun triggerDiagnosticFindingsNotification(customMessage: String? = null) {
+        val msg = customMessage?.takeIf { it.isNotBlank() } ?: return
         val context = getApplication<Application>()
         val isTh = _language.value == AppLanguage.TH
-        val title = if (isTh) "🔍 รายงานผลการสแกนระบบ OBD-II" else "🔍 New Diagnostic Scan Findings"
-        val msg = customMessage ?: if (isTh) {
-            "สแกนโมดูลเครื่องยนต์และระบบส่งกำลังเสร็จสิ้น ตรวจพบรหัสข้อผิดพลาด 2 รายการ พร้อมบันทึก Freeze Frame แล้ว"
-        } else {
-            "Powertrain & Engine scan complete. 2 DTC faults identified with Freeze Frame snapshots."
-        }
+        val title = if (isTh) "🔍 ผลการตรวจวินิจฉัย" else "🔍 Diagnostic Findings"
         NotificationHelper.sendDiagnosticFindingNotification(context, title, msg, notificationId = 1003)
-
-        val logEntry = (System.currentTimeMillis()) to "$title - $msg"
-        _recentNotifications.value = listOf(logEntry) + _recentNotifications.value
+        _recentNotifications.value = listOf((System.currentTimeMillis()) to "$title - $msg") + _recentNotifications.value
     }
 
     // Cloud Database Synchronization & Backup
+    // Do not report success until a real remote operation is implemented and acknowledged.
     fun syncDatabaseWithCloud(onComplete: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            _isCloudSyncing.value = true
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) "กำลังเข้ารหัสและสำรองข้อมูลขึ้นคลาวด์..." else "Encrypting & Syncing with Cloud Vault..."
-            delay(1200) // Simulated secure cloud handshake & AES-256 upload
-
-            _lastCloudSyncTimestamp.value = System.currentTimeMillis()
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
-                "คลาวด์ปลอดภัย: ซิงค์ประวัติซ่อมและข้อมูลรถทั้งหมดแล้ว (AES-256 TLS 1.3)"
-            } else {
-                "Cloud Vault: All vehicle records encrypted & synced (AES-256 TLS 1.3)"
-            }
-            _isCloudSyncing.value = false
-
-            val context = getApplication<Application>()
-            val isTh = _language.value == AppLanguage.TH
-            val title = if (isTh) "☁️ คลาวด์ซิงค์สำเร็จ" else "☁️ Cloud Sync Completed"
-            val msg = if (isTh) "สำรองข้อมูลประวัติซ่อมบำรุงและผลการสแกนขึ้นเซิร์ฟเวอร์คลาวด์เรียบร้อยแล้ว" else "Vehicle maintenance logbook and scan history synchronized securely."
-            NotificationHelper.sendScheduledMaintenanceNotification(context, title, msg, notificationId = 1004)
-
-            _recentNotifications.value = listOf(System.currentTimeMillis() to "$title - $msg") + _recentNotifications.value
-            onComplete(true)
+        _isCloudSyncing.value = false
+        _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
+            "ยังไม่พร้อมซิงค์: ยังไม่ได้เชื่อมต่อบริการ Cloud Sync จริง"
+        } else {
+            "Sync unavailable: a real Cloud Sync service is not connected"
         }
+        onComplete(false)
     }
 
+    // Local refresh is not a cloud restore; fail closed until remote download is implemented.
     fun restoreDatabaseFromCloud(onComplete: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            _isCloudSyncing.value = true
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) "กำลังดึงข้อมูลประวัติซ่อมจากคลาวด์..." else "Fetching vehicle history from Cloud Vault..."
-            delay(1400)
-
-            refreshMaintenanceLogs()
-            recalculatePredictiveHealth()
-            _isCloudSyncing.value = false
-            _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
-                "กู้คืนข้อมูลสำเร็จ: โหลดประวัติรถและบันทึกซ่อมเรียบร้อย"
-            } else {
-                "Cloud Restore Complete: Vehicle logs restored"
-            }
-            onComplete(true)
+        _isCloudSyncing.value = false
+        _cloudSyncStatus.value = if (_language.value == AppLanguage.TH) {
+            "กู้คืนจากคลาวด์ไม่ได้: ยังไม่ได้เชื่อมต่อบริการ Cloud Restore จริง"
+        } else {
+            "Restore unavailable: a real Cloud Restore service is not connected"
         }
+        onComplete(false)
     }
 
     // Advanced Diagnostic Module Scanner (Targeted per Module or All)
@@ -977,11 +829,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        if (_operationMode.value == AppOperationMode.REAL_HARDWARE &&
+            system !in listOf(DiagnosticSystem.ALL, DiagnosticSystem.ENGINE)
+        ) {
+            _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
+                "ยังไม่รองรับการสแกน ECU เฉพาะระบบนี้: ขณะนี้รองรับเฉพาะ Generic OBD-II สำหรับรหัสเครื่องยนต์/ระบบส่งกำลังที่ ECU ตอบกลับ"
+            } else {
+                "System-specific ECU scan is not implemented. Current hardware path supports generic OBD-II responses only."
+            }
+            return
+        }
+
         viewModelScope.launch {
             _isScanning.value = true
             _scanProgress.value = 0f
 
-            val steps = when (system) {
+            val steps = if (_operationMode.value == AppOperationMode.REAL_HARDWARE) {
+                listOf(
+                    "Detecting OBD protocol via adapter...",
+                    "Validating ECU response to supported-PID query...",
+                    "Reading confirmed DTCs (Mode 03)...",
+                    "Reading pending DTCs (Mode 07)...",
+                    "Reading permanent DTCs (Mode 0A)..."
+                ).map { it to it }
+            } else when (system) {
                 DiagnosticSystem.ALL -> listOf(
                     "Connecting via ISO 15765-4 High-Speed CAN..." to "เชื่อมต่อผ่านเครือข่ายความเร็วสูง CAN Bus 500k...",
                     "Scanning Engine ECM Module (P0xxx)..." to "กำลังสแกนกล่องเครื่องยนต์ ECM (รหัส P)...",
@@ -1050,7 +921,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     systemLogger.log(if (ev.isSuccess) "INFO" else "WARN", "OBD_TX_RX", "CMD: ${ev.command} | RES: ${ev.rawResponse}", "Latency: ${ev.latencyMs}ms")
                 }
 
-                // Map AgonisticDtcResult to DtcCode
+                if (scanResult.status != com.example.service.DiagnosticScanStatus.SUCCESS &&
+                    scanResult.status != com.example.service.DiagnosticScanStatus.NO_DTC
+                ) {
+                    _isScanning.value = false
+                    _scanProgress.value = 0f
+                    _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
+                        "สแกนไม่สำเร็จ: ไม่ได้รับผลตอบกลับ ECU ที่ยืนยันได้ (${scanResult.status})"
+                    } else {
+                        "Scan failed: no verified ECU scan result (${scanResult.status})."
+                    }
+                    _diagnosticReport.value = _currentScanSystem.value
+                    return@launch
+                }
+
+                // Map only DTCs returned by a completed generic OBD-II response.
                 scanResult.dtcList.map { res ->
                     DtcDatabase.findByCode(res.code) ?: DtcCode(
                         code = res.code,
@@ -1104,19 +989,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _activeDtcs.value = detected
             _isMilOn.value = detected.isNotEmpty()
             _isScanning.value = false
-            _currentScanSystem.value = if (_language.value == AppLanguage.TH) {
-                "สแกนระบบสำเร็จ (พบ ${detected.size} รหัสข้อผิดพลาด)"
+            _currentScanSystem.value = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+                if (_language.value == AppLanguage.TH) {
+                    "การสแกนจำลองเสร็จสิ้น: สร้างรหัสจำลอง ${detected.size} รายการ"
+                } else {
+                    "Simulation complete: ${detected.size} simulated DTCs generated."
+                }
             } else {
-                "Module Scan Complete (${detected.size} DTCs Detected)"
+                if (_language.value == AppLanguage.TH) {
+                    "สแกน Generic OBD-II เสร็จสิ้น: ECU ตอบกลับ ${detected.size} รหัส (ไม่ใช่การสแกน ECU ทุกโมดูล)"
+                } else {
+                    "Generic OBD-II scan complete: ${detected.size} DTCs returned by the ECU (not a full all-module scan)."
+                }
             }
 
-            emulatorService.triggerSimulatedFault(detected.firstOrNull()?.code ?: "P0171")
+            if (_operationMode.value == AppOperationMode.SIMULATOR && detected.isNotEmpty()) {
+                emulatorService.triggerSimulatedFault(detected.first().code)
+            }
             recalculatePredictiveHealth()
 
             // Save Scan Record to Room
             val vehicle = selectedVehicle.value
             if (vehicle != null) {
-                val sensor = emulatorService.sensorData.value
+                val sensor = liveSensors.value
                 val record = ScanRecord(
                     vehicleId = vehicle.id,
                     timestamp = System.currentTimeMillis(),
@@ -1136,11 +1031,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Dispatch Push Notifications for Diagnostic Findings & Critical Alerts
             val context = getApplication<Application>()
             val isTh = _language.value == AppLanguage.TH
-            val findingTitle = if (isTh) "🔍 ผลการสแกนโมดูล ${system.titleTh}" else "🔍 ${system.titleEn} Scan Findings"
-            val findingMsg = if (isTh) {
-                "ตรวจพบรหัสความผิดปกติ ${detected.size} รหัส (${detected.joinToString { it.code }}) บันทึก Freeze Frame แล้ว"
+            val findingTitle = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+                if (isTh) "🔍 ผลการสแกนจำลอง ${system.titleTh}" else "🔍 Simulated ${system.titleEn} Findings"
             } else {
-                "Found ${detected.size} DTCs (${detected.joinToString { it.code }}). Freeze Frame recorded."
+                if (isTh) "🔍 ผลการสแกน Generic OBD-II" else "🔍 Generic OBD-II Scan Findings"
+            }
+            val findingMsg = if (_operationMode.value == AppOperationMode.SIMULATOR) {
+                if (isTh) {
+                    "ผลจำลอง: สร้างรหัส ${detected.size} รายการ (${detected.joinToString { it.code }}); Freeze Frame เป็นข้อมูลจำลอง"
+                } else {
+                    "Simulation result: generated ${detected.size} DTCs (${detected.joinToString { it.code }}); Freeze Frame is simulated."
+                }
+            } else {
+                if (isTh) {
+                    "ECU ตอบกลับรหัส ${detected.size} รายการ (${detected.joinToString { it.code }}); การสแกนนี้ยังไม่ได้อ่าน Freeze Frame"
+                } else {
+                    "ECU returned ${detected.size} DTCs (${detected.joinToString { it.code }}); Freeze Frame was not read by this scan path."
+                }
             }
             NotificationHelper.sendDiagnosticFindingNotification(context, findingTitle, findingMsg, 1005)
 
@@ -1158,6 +1065,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Clear Fault Codes (Mode 04 / UDS 0x14 ECU Reset) for specific system or all
     fun clearDtcFaultCodes(system: DiagnosticSystem = DiagnosticSystem.ALL) {
+        if (_operationMode.value == AppOperationMode.REAL_HARDWARE) {
+            _diagnosticReport.value = if (_language.value == AppLanguage.TH) {
+                "ยังไม่ได้ลบรหัสจาก ECU: ต้องส่งคำสั่งล้าง DTC ไปยังกล่องควบคุมและยืนยันผลตอบกลับจริงก่อน ระบบจึงจะเปลี่ยนสถานะรหัสขัดข้องได้"
+            } else {
+                "DTCs were not cleared: the ECU clear command and its real response must be verified before changing fault status."
+            }
+            return
+        }
+
         viewModelScope.launch {
             if (system == DiagnosticSystem.ALL) {
                 _activeDtcs.value = emptyList()
@@ -1168,11 +1084,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isMilOn.value = _activeDtcs.value.isNotEmpty()
             _diagnosticReport.value = null
             emulatorService.clearDtcAndResetEcu()
-
-            val vehicle = selectedVehicle.value
-            if (vehicle != null) {
-                vehicleDao.updateVehicle(vehicle.copy(healthScore = 98, lastScanDate = System.currentTimeMillis()))
-            }
+            // Clearing simulated codes is not evidence that the real vehicle is healthy.
             recalculatePredictiveHealth()
         }
     }
@@ -1219,7 +1131,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val vContext = if (vehicle != null) {
                 "${vehicle.make} ${vehicle.model} (${vehicle.year}), ไมล์ ${vehicle.currentMileageKm} km, เชื้อเพลิง ${vehicle.fuelType}"
             } else {
-                "Toyota Hilux Revo 2.4 GD Rocco 2021"
+                if (_language.value == AppLanguage.TH) "ยังไม่ได้เลือกรถ" else "No vehicle selected"
             }
 
             val replyText = aiRepository.chat(
@@ -1246,26 +1158,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Deep AI Diagnostic Report Generation
     fun generateAiDeepReport() {
         val dtcs = _activeDtcs.value
-        val vehicle = selectedVehicle.value ?: Vehicle(
-            make = "Toyota",
-            model = "Hilux Revo",
-            year = 2021,
-            engine = "2.4 GD",
-            licensePlate = "8กบ 9421",
-            vin = "MR0BA3CD2M0123456",
-            currentMileageKm = 68500
-        )
+        val vehicle = selectedVehicle.value
+        if (vehicle == null) {
+            _diagnosticReport.value = if (_language.value == AppLanguage.TH) {
+                "ยังสร้างรายงานไม่ได้: กรุณาเลือกข้อมูลรถก่อน ระบบจะไม่สมมติรถหรือเลขตัวถังให้เอง"
+            } else {
+                "Report not generated: select a vehicle first. The app will not invent vehicle details."
+            }
+            return
+        }
+        if (dtcs.isEmpty()) {
+            _diagnosticReport.value = if (_language.value == AppLanguage.TH) {
+                "ยังสร้างรายงานข้อขัดข้องไม่ได้: ไม่มีรหัส DTC ที่ตรวจพบในขณะนี้ กรุณาสแกนระบบก่อน"
+            } else {
+                "Diagnostic report not generated: no detected DTCs are available. Run a scan first."
+            }
+            return
+        }
 
         viewModelScope.launch {
             _isGeneratingReport.value = true
-            val report = aiRepository.analyzeDeepDiagnosis(
-                dtcs = if (dtcs.isEmpty()) listOf(DtcDatabase.allCodes[0], DtcDatabase.allCodes[1]) else dtcs,
-                freezeFrame = emulatorService.freezeFrame.value,
-                vehicle = vehicle,
-                language = _language.value
-            )
-            _diagnosticReport.value = report
-            _isGeneratingReport.value = false
+            try {
+                _diagnosticReport.value = aiRepository.analyzeDeepDiagnosis(
+                    dtcs = dtcs,
+                    freezeFrame = if (_operationMode.value == AppOperationMode.SIMULATOR) emulatorService.freezeFrame.value else null,
+                    vehicle = vehicle,
+                    language = _language.value
+                )
+            } finally {
+                _isGeneratingReport.value = false
+            }
         }
     }
 
@@ -1343,9 +1265,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         usbDriver.clearTerminalLogs()
     }
 
+    // Google Drive integration is not implemented yet; fail closed rather than simulating success.
     fun connectGoogleDrive(email: String) {
-        _googleDriveConnected.value = true
-        _googleDriveAccountEmail.value = email
+        _googleDriveConnected.value = false
+        _googleDriveAccountEmail.value = ""
     }
 
     fun disconnectGoogleDrive() {
@@ -1354,27 +1277,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun backupToGoogleDrive(onComplete: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            _isGoogleDriveSyncing.value = true
-            delay(1500)
-            _isGoogleDriveSyncing.value = false
-            val timeStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
-            _lastCloudBackupTime.value = timeStr
-            val isTh = _language.value == AppLanguage.TH
-            val msg = if (isTh) "สำรองข้อมูลรถยนต์และประวัติ DTC ไปยัง Google Drive สำเร็จ ($timeStr)" else "Backup uploaded to Google Drive successfully ($timeStr)"
-            onComplete(true, msg)
+        _isGoogleDriveSyncing.value = false
+        val msg = if (_language.value == AppLanguage.TH) {
+            "สำรองข้อมูลไม่ได้: ยังไม่ได้เชื่อมต่อบริการ Google Drive จริง"
+        } else {
+            "Backup unavailable: a real Google Drive service is not connected"
         }
+        onComplete(false, msg)
     }
 
     fun restoreFromGoogleDrive(onComplete: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            _isGoogleDriveSyncing.value = true
-            delay(1500)
-            _isGoogleDriveSyncing.value = false
-            val isTh = _language.value == AppLanguage.TH
-            val msg = if (isTh) "กู้คืนข้อมูลจาก Google Drive สำเร็จ" else "Data restored from Google Drive successfully"
-            onComplete(true, msg)
+        _isGoogleDriveSyncing.value = false
+        val msg = if (_language.value == AppLanguage.TH) {
+            "กู้คืนข้อมูลไม่ได้: ยังไม่ได้เชื่อมต่อบริการ Google Drive จริง"
+        } else {
+            "Restore unavailable: a real Google Drive service is not connected"
         }
+        onComplete(false, msg)
     }
 
     fun toggleWidgetSpeed() { _widgetSpeedVisible.value = !_widgetSpeedVisible.value }

@@ -217,14 +217,14 @@ fun PredictiveMaintenanceScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${vehicle?.make ?: "Toyota"} ${vehicle?.model ?: "Hilux Revo"} • ${summary.mileageAnalyzedKm} km",
+                                text = if (summary.dataAvailable) "${vehicle?.make} ${vehicle?.model} • ${summary.mileageAnalyzedKm} km" else if (isTh) "ยังไม่มีข้อมูลที่ยืนยันได้" else "No verified data available",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
                         // Score Badge
-                        val scoreColor = when {
+                        val scoreColor = if (!summary.dataAvailable) MaterialTheme.colorScheme.outline else when {
                             summary.overallHealthScore >= 85 -> Color(0xFF4CAF50)
                             summary.overallHealthScore >= 65 -> Color(0xFFFF9800)
                             else -> Color(0xFFE53935)
@@ -240,7 +240,7 @@ fun PredictiveMaintenanceScreen(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "${summary.overallHealthScore}%",
+                                    text = if (summary.dataAvailable) "${summary.overallHealthScore}%" else "—",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = scoreColor
@@ -251,7 +251,7 @@ fun PredictiveMaintenanceScreen(
 
                     // Progress bar
                     LinearProgressIndicator(
-                        progress = { summary.overallHealthScore / 100f },
+                        progress = { if (summary.dataAvailable) summary.overallHealthScore / 100f else 0f },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)
@@ -296,6 +296,19 @@ fun PredictiveMaintenanceScreen(
                     }
                 }
             }
+        }
+
+        item {
+            Text(
+                text = if (isTh) {
+                    "หมายเหตุ: คะแนนสุขภาพ ความเสี่ยง ระยะทาง/วันที่คงเหลือ และราคาชิ้นส่วนเป็นค่าประเมินจากกฎคงที่ ไม่ใช่ความน่าจะเป็นที่ผ่านการรับรองทางสถิติหรือข้อมูลเฉพาะรุ่นรถ โปรดตรวจสอบคู่มือผู้ผลิตและให้ช่างตรวจยืนยัน"
+                } else {
+                    "Note: health scores, risk values, remaining life, and part prices are heuristic estimates—not statistically validated probabilities or vehicle-specific OEM data. Verify against the manufacturer's service information and a qualified technician."
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         // Driving Stress Profile Selector (Interactively changes telemetry conditions)
@@ -379,7 +392,7 @@ fun PredictiveMaintenanceScreen(
                 isTh = isTh,
                 onAskAi = {
                     val prompt = if (isTh) {
-                        "ช่วยวิเคราะห์ความเสี่ยงและวิธีซ่อมแซมชิ้นส่วน '${component.nameTh}' ของรถ ${vehicle?.make ?: "Toyota"} ${vehicle?.model ?: "Revo"} เลขไมล์ ${summary.mileageAnalyzedKm} กม. อาการ: ${component.reasonTh} แนะนำอะไหล่และค่าแรงโดยละเอียด"
+                        "ช่วยวิเคราะห์ความเสี่ยงและวิธีซ่อมแซมชิ้นส่วน '${component.nameTh}' ของรถ ${vehicle?.make ?: "ไม่ระบุ"} ${vehicle?.model ?: "ไม่ระบุ"} เลขไมล์ ${summary.mileageAnalyzedKm} กม. อาการ: ${component.reasonTh} แนะนำอะไหล่และค่าแรงโดยละเอียด"
                     } else {
                         "Please provide diagnostic breakdown and repair procedure for '${component.nameEn}' on ${vehicle?.make} ${vehicle?.model}. Symptoms: ${component.reasonEn}."
                     }
