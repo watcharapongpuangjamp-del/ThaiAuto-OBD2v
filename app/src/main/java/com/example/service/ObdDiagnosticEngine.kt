@@ -304,7 +304,7 @@ class ObdDiagnosticEngine {
         return raw.replace(">", "").replace("\r", " ").replace("\n", " ").trim()
     }
 
-    private fun parseDtcResponse(raw: String, status: DtcStatus, outMap: MutableMap<String, AgonisticDtcResult>) {
+    internal fun parseDtcResponse(raw: String, status: DtcStatus, outMap: MutableMap<String, AgonisticDtcResult>) {
         val cleaned = cleanResponse(raw)
         val tokens = cleaned.split(Regex("\\s+"))
         var i = 0
