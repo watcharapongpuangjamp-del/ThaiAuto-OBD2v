@@ -212,36 +212,65 @@ fun VehicleSpecsScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
+                        val decodedMake = decodedVin["make"]?.trim()?.takeIf { it.isNotEmpty() }
+                        val decodedModel = decodedVin["model"]?.trim()?.takeIf { it.isNotEmpty() }
+                        val decodedYear = decodedVin["modelYear"]?.toIntOrNull()
+                        val decodedEngine = decodedVin["engine"]?.trim()?.takeIf { it.isNotEmpty() }
+                        val decodedPlate = decodedVin["licensePlate"]?.trim()?.takeIf { it.isNotEmpty() }
+                        val decodedMileage = decodedVin["mileage"]?.toIntOrNull()
+                        val decodedFuel = decodedVin["fuelType"]?.trim()?.takeIf { it.isNotEmpty() }
+                        val canRegisterDecodedVehicle = vinInput.trim().length == 17 &&
+                            decodedMake != null && decodedModel != null &&
+                            decodedYear != null && decodedEngine != null &&
+                            decodedPlate != null && decodedMileage != null && decodedFuel != null
+
+                        Text(
+                            text = if (canRegisterDecodedVehicle) {
+                                if (isTh) "ตรวจสอบรายละเอียดรถที่ถอดรหัสได้ก่อนบันทึก" else "Review decoded vehicle details before registration"
+                            } else {
+                                if (isTh) "ข้อมูล VIN ยังไม่ครบสำหรับลงทะเบียนรถอัตโนมัติ กรุณากรอกรายละเอียดรถจริงให้ครบก่อนบันทึก ระบบจะไม่เติมยี่ห้อ รุ่น ทะเบียน หรือเลขไมล์สมมติ" else "VIN data is insufficient for automatic registration. Provide verified vehicle details first; the app will not invent make, model, plate, or mileage."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         Button(
                             onClick = {
-                                val make = decodedVin["make"] ?: "Toyota"
-                                val year = (decodedVin["modelYear"] ?: "2021").toIntOrNull() ?: 2021
+                                val make = decodedMake ?: return@Button
+                                val model = decodedModel ?: return@Button
+                                val year = decodedYear ?: return@Button
+                                val engine = decodedEngine ?: return@Button
+                                val plate = decodedPlate ?: return@Button
+                                val mileage = decodedMileage ?: return@Button
+                                val fuel = decodedFuel ?: return@Button
+                                if (vinInput.trim().length != 17) return@Button
                                 viewModel.addNewVehicle(
                                     make = make,
-                                    model = "Vehicle-$year",
+                                    model = model,
                                     year = year,
-                                    engine = "Engine Standard",
-                                    plate = "กข 1234",
-                                    province = "กรุงเทพมหานคร",
-                                    vin = vinInput,
-                                    mileage = 68500,
-                                    fuel = "ดีเซล (Diesel)"
+                                    engine = engine,
+                                    plate = plate,
+                                    province = decodedVin["province"]?.trim()?.takeIf { it.isNotEmpty() } ?: "",
+                                    vin = vinInput.trim().uppercase(),
+                                    mileage = mileage,
+                                    fuel = fuel
                                 )
                             },
+                            enabled = canRegisterDecodedVehicle,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AutoGreen)
                         ) {
                             Icon(imageVector = Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = if (isTh) "บันทึกลงทะเบียนรถคันนี้เข้าอู่ (Register Car)" else "Register Vehicle into Cloud DB", fontSize = 12.sp)
+                            Text(text = if (isTh) "บันทึกรถจากข้อมูลที่ยืนยันแล้ว" else "Register verified vehicle details", fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
 
-        // Secure Cloud-Based Database & Repair History Manager
+        
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
