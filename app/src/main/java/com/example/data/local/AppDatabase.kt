@@ -15,7 +15,7 @@ import com.example.data.model.Vehicle
 @Database(
     entities = [Vehicle::class, MaintenanceLog::class, ScanRecord::class, DtcCode::class, TelemetrySnapshot::class, SystemLog::class],
     version = 3,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -36,7 +36,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "thai_obd2_diagnostics.db"
                 )
-                .fallbackToDestructiveMigration()
+                // Fail closed on unsupported upgrades rather than silently deleting user data.
+                // Add and test an explicit Migration before incrementing the database version.
                 .build()
                 INSTANCE = instance
                 instance
